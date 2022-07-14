@@ -1,5 +1,5 @@
 # MeW-PhotoPrism
-PhotoPrism client for android.
+Android client compatible with PhotoPrism
 
 [PhotoPrism® is an AI-Powered Photos App for the Decentralized Web.](https://github.com/photoprism/photoprism)
 
