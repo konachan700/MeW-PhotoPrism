@@ -4,12 +4,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
+import com.mewhpm.mewphotoprism.Const
 import com.mewhpm.mewphotoprism.R
 import com.mewhpm.mewphotoprism.entity.AccountEntity
 import com.mewhpm.mewphotoprism.view_holders.ListItemViewHolder
-
-const val ACTION_LONG_CLICK  = 1
-const val ACTION_SHORT_CLICK = 0
 
 class AccountsListAdapter(
     private val accounts : List<AccountEntity>,
@@ -29,10 +27,10 @@ class AccountsListAdapter(
         holder.txtText.text = item.url
         holder.icon.setImageResource(R.drawable.icon_remote_gallery)
         holder.rootView.setOnClickListener {
-            onAction.invoke(ACTION_SHORT_CLICK, position, item)
+            onAction.invoke(Const.ACTION_SHORT_CLICK, position, item)
         }
         holder.rootView.setOnLongClickListener {
-            onAction.invoke(ACTION_LONG_CLICK, position, item)
+            onAction.invoke(Const.ACTION_LONG_CLICK, position, item)
             return@setOnLongClickListener false
         }
     }

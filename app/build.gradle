@@ -32,6 +32,7 @@ android {
 }
 
 dependencies {
+    implementation 'androidx.work:work-runtime-ktx:2.5.0'
     apply plugin: 'kotlin-kapt'
 
     implementation 'androidx.core:core-ktx:1.8.0'

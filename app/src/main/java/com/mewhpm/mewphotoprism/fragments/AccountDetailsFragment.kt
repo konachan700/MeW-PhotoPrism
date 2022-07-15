@@ -8,18 +8,10 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
-import androidx.room.Room
-import com.mewhpm.mewphotoprism.APP_DB_NAME
 import com.mewhpm.mewphotoprism.AppDatabase
+import com.mewhpm.mewphotoprism.Const
 import com.mewhpm.mewphotoprism.R
 import com.mewhpm.mewphotoprism.entity.AccountEntity
-import com.mewhpm.mewphotoprism.entity.XTYPE_PHOTOPRISM
-
-private const val ARG_ACCOUNT_NAME      = "name"
-private const val ARG_ACCOUNT_URL       = "url"
-private const val ARG_ACCOUNT_USERNAME  = "username"
-private const val ARG_ACCOUNT_PASSWORD  = "password"
-private const val ARG_ACCOUNT_UID       = "uid"
 
 class AccountDetailsFragment : Fragment() {
     private var name:       String? = null
@@ -33,11 +25,11 @@ class AccountDetailsFragment : Fragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
-            name        = it.getString(ARG_ACCOUNT_NAME)
-            url         = it.getString(ARG_ACCOUNT_URL)
-            username    = it.getString(ARG_ACCOUNT_USERNAME)
-            password    = it.getString(ARG_ACCOUNT_PASSWORD)
-            uid         = it.getLong(ARG_ACCOUNT_UID)
+            name        = it.getString(Const.ARG_ACCOUNT_NAME)
+            url         = it.getString(Const.ARG_ACCOUNT_URL)
+            username    = it.getString(Const.ARG_ACCOUNT_USERNAME)
+            password    = it.getString(Const.ARG_ACCOUNT_PASSWORD)
+            uid         = it.getLong(Const.ARG_ACCOUNT_UID)
         }
         db = AppDatabase.getDB(requireContext())
     }
@@ -68,7 +60,7 @@ class AccountDetailsFragment : Fragment() {
                 item.pass = password
                 db.AccountsDAO().update(item)
             } else {
-                val item = AccountEntity(0, name, url, username, password, XTYPE_PHOTOPRISM)
+                val item = AccountEntity(0, name, url, username, password, Const.XTYPE_PHOTOPRISM)
                 db.AccountsDAO().insertAll(item)
             }
             requireActivity().supportFragmentManager.popBackStack()
@@ -99,11 +91,11 @@ class AccountDetailsFragment : Fragment() {
         fun newInstance(account : AccountEntity?) =
             AccountDetailsFragment().apply {
                 arguments = Bundle().apply {
-                    putString(ARG_ACCOUNT_NAME,     account?.name ?: "")
-                    putString(ARG_ACCOUNT_URL,      account?.url  ?: "")
-                    putString(ARG_ACCOUNT_USERNAME, account?.user ?: "")
-                    putString(ARG_ACCOUNT_PASSWORD, account?.pass ?: "")
-                    if (account?.uid != null) putLong(ARG_ACCOUNT_UID, account.uid)
+                    putString(Const.ARG_ACCOUNT_NAME,     account?.name ?: "")
+                    putString(Const.ARG_ACCOUNT_URL,      account?.url  ?: "")
+                    putString(Const.ARG_ACCOUNT_USERNAME, account?.user ?: "")
+                    putString(Const.ARG_ACCOUNT_PASSWORD, account?.pass ?: "")
+                    if (account?.uid != null) putLong(Const.ARG_ACCOUNT_UID, account.uid)
                 }
             }
     }

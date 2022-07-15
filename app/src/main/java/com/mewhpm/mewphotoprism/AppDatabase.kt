@@ -5,11 +5,17 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.mewhpm.mewphotoprism.dao.AccountsDAO
+import com.mewhpm.mewphotoprism.dao.ImageRecordsDAO
 import com.mewhpm.mewphotoprism.entity.AccountEntity
+import com.mewhpm.mewphotoprism.entity.ImageEntity
 
-@Database(entities = [AccountEntity::class], version = 1)
+@Database(entities = [
+    AccountEntity::class,
+    ImageEntity::class
+                     ], version = 2)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun AccountsDAO() : AccountsDAO
+    abstract fun ImageRecordsDAO() : ImageRecordsDAO
 
     companion object {
         private var db : AppDatabase? = null
@@ -18,8 +24,9 @@ abstract class AppDatabase : RoomDatabase() {
         fun getDB(context: Context) : AppDatabase {
             if (db == null) {
                 db = Room
-                    .databaseBuilder(context, AppDatabase::class.java, APP_DB_NAME)
+                    .databaseBuilder(context, AppDatabase::class.java, Const.APP_DB_NAME)
                     .allowMainThreadQueries()
+                    .fallbackToDestructiveMigration()
                     .build()
             }
             return db!!

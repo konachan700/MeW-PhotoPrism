@@ -11,7 +11,9 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.mewhpm.mewphotoprism.R
 import com.mewhpm.mewphotoprism.entity.AccountEntity
-import com.mewhpm.mewphotoprism.services.MainImageSource
+import com.mewhpm.mewphotoprism.services.Storage
+import com.mewhpm.mewphotoprism.services.proto.ReadableStorage
+import com.mewhpm.mewphotoprism.services.proto.SecuredStorage
 import com.mewhpm.mewphotoprism.view_holders.GalleryItemViewHolder
 
 class GalleryListAdapter(
@@ -40,10 +42,10 @@ class GalleryListAdapter(
     }
 
     override fun onBindViewHolder(holder: GalleryItemViewHolder, position: Int) {
-        if (MainImageSource.getInstance(accountEntity).isLogin()) {
+        if (Storage.getInstance(accountEntity, context, SecuredStorage::class.java).isLogin()) {
             return
         }
-        MainImageSource.getInstance(accountEntity).preview(position, {
+        Storage.getInstance(accountEntity, context, ReadableStorage::class.java).preview(position, {
             Log.d("IMG", "Image $position loaded")
             mainHandler.post {
                 Glide
@@ -73,7 +75,7 @@ class GalleryListAdapter(
     }
 
     override fun getItemCount(): Int {
-        val count = MainImageSource.getInstance(accountEntity).getImagesCount()
+        val count = Storage.getInstance(accountEntity, context, ReadableStorage::class.java).getImagesCount()
         Log.d("IMGCOUNT", "Count = $count")
         return count
     }

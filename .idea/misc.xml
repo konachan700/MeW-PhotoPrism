@@ -6,11 +6,13 @@
         <entry key="../../../../layout/custom_preview.xml" value="0.2598958333333333" />
         <entry key="app/src/main/res/drawable/ic_launcher_background.xml" value="0.238" />
         <entry key="app/src/main/res/drawable/ic_launcher_foreground.xml" value="0.238" />
+        <entry key="app/src/main/res/drawable/usb_off_foreground.xml" value="0.264" />
         <entry key="app/src/main/res/layout/activity_main.xml" value="0.37447916666666664" />
         <entry key="app/src/main/res/layout/fragment_account_details.xml" value="0.37447916666666664" />
         <entry key="app/src/main/res/layout/fragment_accounts.xml" value="0.37447916666666664" />
         <entry key="app/src/main/res/layout/fragment_image_list.xml" value="0.37447916666666664" />
         <entry key="app/src/main/res/layout/fragment_image_view.xml" value="0.21614583333333334" />
+        <entry key="app/src/main/res/layout/fragment_usb_camera_sync.xml" value="0.25885416666666666" />
         <entry key="app/src/main/res/layout/layout_account_item.xml" value="0.37447916666666664" />
         <entry key="app/src/main/res/layout/layout_gallery_item.xml" value="0.21614583333333334" />
         <entry key="app/src/main/res/layout/menu_bottom_image_view.xml" value="0.2706812652068126" />

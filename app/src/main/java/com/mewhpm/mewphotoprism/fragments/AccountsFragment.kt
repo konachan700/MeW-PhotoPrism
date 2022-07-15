@@ -1,23 +1,15 @@
 package com.mewhpm.mewphotoprism.fragments
 
 import android.os.Bundle
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
-import android.widget.EditText
-import android.widget.Toast
+import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.room.Room
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.mewhpm.mewphotoprism.*
-import com.mewhpm.mewphotoprism.adapters.ACTION_LONG_CLICK
-import com.mewhpm.mewphotoprism.adapters.ACTION_SHORT_CLICK
 import com.mewhpm.mewphotoprism.adapters.AccountsListAdapter
-import com.mewhpm.mewphotoprism.entity.AccountEntity
-import com.mewhpm.mewphotoprism.entity.XTYPE_PHOTOPRISM
 
 class AccountsFragment : Fragment() {
     private lateinit var db : AppDatabase
@@ -35,17 +27,17 @@ class AccountsFragment : Fragment() {
         recyclerView.layoutManager = GridLayoutManager(requireContext(), 1)
         recyclerView.adapter = AccountsListAdapter(list) { type, position, item ->
             when (type) {
-                ACTION_SHORT_CLICK -> {
-                    val settings = requireActivity().getSharedPreferences(SHARED_SETTINGS_NAME, 0)
+                Const.ACTION_SHORT_CLICK -> {
+                    val settings = requireActivity().getSharedPreferences(Const.SHARED_SETTINGS_NAME, 0)
                     val editor = settings.edit()
-                    editor.putLong(SHARED_SETTINGS_VAL_UID, item.uid)
+                    editor.putLong(Const.SHARED_SETTINGS_VAL_UID, item.uid)
                     editor.apply()
 
                     val transaction = requireActivity().supportFragmentManager.beginTransaction()
                     transaction.replace(R.id.fragmentHost, ImageListFragment.newInstance(item), "MainFragment")
                     transaction.commit()
                 }
-                ACTION_LONG_CLICK -> {
+                Const.ACTION_LONG_CLICK -> {
                     val transaction = requireActivity().supportFragmentManager.beginTransaction()
                     transaction.replace(R.id.fragmentHost, AccountDetailsFragment.newInstance(item), "MainFragment")
                     transaction.addToBackStack(null)

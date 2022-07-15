@@ -1,15 +1,19 @@
-package com.mewhpm.mewphotoprism.services
+package com.mewhpm.mewphotoprism.services.impl
 
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import com.google.gson.Gson
+import com.mewhpm.mewphotoprism.AppDatabase
 import com.mewhpm.mewphotoprism.entity.AccountEntity
+import com.mewhpm.mewphotoprism.entity.ImageEntity
 import com.mewhpm.mewphotoprism.exceptions.NotLoggedOnException
 import com.mewhpm.mewphotoprism.exceptions.PhotoprismBadTokenException
 import com.mewhpm.mewphotoprism.exceptions.PhotoprismInvalidLoginPasswordException
 import com.mewhpm.mewphotoprism.pojo.SimpleImage
+import com.mewhpm.mewphotoprism.services.proto.CacheableStorage
+import com.mewhpm.mewphotoprism.services.proto.ReadableStorage
+import com.mewhpm.mewphotoprism.services.proto.SecuredStorage
+import com.mewhpm.mewphotoprism.services.proto.WritableStorage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -19,11 +23,19 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.FileOutputStream
 import java.lang.Exception
+import java.nio.file.Files
 import java.util.*
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.collections.HashMap
 
-class PhotoprismImageSource : UniversalImageSource, WebSocketListener() {
+class PhotoprismStorage :
+    ReadableStorage,
+    WritableStorage,
+    SecuredStorage,
+    WebSocketListener(),
+    CacheableStorage
+{
     private var account   : AccountEntity? = null
     private var authToken : String? = null
     private var previewToken : String? = null
@@ -40,6 +52,7 @@ class PhotoprismImageSource : UniversalImageSource, WebSocketListener() {
     private val imageCachePageSize = 60
     private var onLoginSuccess : (() -> Unit)? = null
     private var context: Context? = null
+    private var transactionID = Date().time
 
     private fun checkLogin() {
         if (this.authToken == null) throw NotLoggedOnException("You are not logged on")
@@ -171,6 +184,7 @@ class PhotoprismImageSource : UniversalImageSource, WebSocketListener() {
                 onSuccess(tFile.absolutePath)
                 return@launch
             }
+            garbargeCollector()
 
             val request = defaultHeaders(Request.Builder())
                 .url("${account!!.url}/api/v1/dl/${name}?t=${fullSizeToken}")
@@ -256,5 +270,120 @@ class PhotoprismImageSource : UniversalImageSource, WebSocketListener() {
 
             }
         }
+    }
+
+    override fun garbargeCollector() {
+        val cacheSize = 32
+        val dir = File(context!!.cacheDir, "PhotoprismImageSource")
+        if (!dir.exists()) return
+        val files = dir.listFiles()
+        if (files == null || files.size <= cacheSize) return
+        files.sortByDescending { a -> a.lastModified() }
+        files.takeLast(files.size - cacheSize).forEach { file -> file.delete() }
+    }
+
+    override fun isImageExist(
+        name: String,
+        additionalData: Map<String, Any>,
+        onSuccess: (exist: Boolean) -> Unit,
+        onError: () -> Unit
+    ) {
+        try {
+            val calendar = GregorianCalendar.getInstance()
+            calendar.time = additionalData["date"] as Date
+            val day = calendar.get(Calendar.DAY_OF_MONTH)
+            val month = calendar.get(Calendar.MONTH) + 1
+            val year = calendar.get(Calendar.YEAR)
+
+            val dao = AppDatabase.getDB(context!!.applicationContext).ImageRecordsDAO()
+            if (dao.findAll(name, year, month, day).isNotEmpty()) {
+                onSuccess.invoke(true)
+                return
+            }
+
+            val result = AtomicBoolean(false)
+            val request = defaultHeaders(Request.Builder())
+                .url("${account!!.url}/api/v1/photos?count=1&original=$name&day=$day&month=$month&year=$year")
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Referer", "${account!!.url}/browse")
+                .addHeader("X-Session-Id", "${this.authToken}")
+                .build()
+            okHttpClient
+                .newCall(request)
+                .execute()
+                .use { response ->
+                    if (response.code == 200) {
+                        val gson = Gson()
+                        val dataList = gson.fromJson(response.body?.string() ?: "{}", List::class.java) as List<*>
+                        if (dataList.isNotEmpty()) {
+                            val dataMap = dataList.first() as Map<*, *>
+                            if (dataMap.isNotEmpty()) {
+                                dao.insertAll(ImageEntity(0, name, year, month, day))
+                                result.set(true)
+                            }
+                        }
+                    } else {
+                        throw RuntimeException("Invalid auth token or bad request. Code: ${response.code}")
+                    }
+                }
+            onSuccess.invoke(result.get())
+        } catch (e : Exception) {
+            e.printStackTrace()
+            onError.invoke()
+        }
+    }
+
+    override fun upload(file: File, onSuccess: () -> Unit, onError: () -> Unit) {
+        try {
+            val obj = Files.readAllBytes(file.toPath())
+            val requestBody = MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart(
+                    "files", file.name,
+                    obj.toRequestBody("image/jpeg".toMediaType(), 0, obj.size)
+                )
+                .build()
+            val request = defaultHeaders(Request.Builder())
+                .url("${account!!.url}/api/v1/upload/$transactionID")
+                .addHeader("Referer", "${account!!.url}/browse")
+                .addHeader("X-Session-Id", "${this.authToken}")
+                .post(requestBody)
+                .build()
+            okHttpClient
+                .newCall(request)
+                .execute()
+                .use { response ->
+                    if (response.code != 200) {
+                        throw RuntimeException("Error while sync process. Code: ${response.code}")
+                    }
+                    onSuccess.invoke()
+                }
+        } catch (e : Exception) {
+            e.printStackTrace()
+            onError.invoke()
+        }
+    }
+
+    override fun createTransaction() {
+        transactionID = Date().time
+    }
+
+    override fun closeTransaction() {
+        val request = defaultHeaders(Request.Builder())
+            .url("${account!!.url}/api/v1/import/upload/$transactionID")
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Referer", "${account!!.url}/browse")
+            .addHeader("X-Session-Id", "${this.authToken}")
+            .post("{\"move\":true,\"albums\":[]}".toRequestBody("application/json".toMediaType()))
+            .build()
+        okHttpClient
+            .newCall(request)
+            .execute()
+            .use { response ->
+                if (response.code != 200) {
+                    throw RuntimeException("Error while sync process. Code: ${response.code}")
+                }
+            }
+        transactionID = 0
     }
 }

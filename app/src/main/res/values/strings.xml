@@ -13,4 +13,9 @@
     <string name="delete">Delete</string>
     <string name="logout">Logout</string>
     <string name="share">Share</string>
+    <string name="import_from_usb_camera">Import from USB camera</string>
+    <string name="waiting_for_camera">Waiting for camera...</string>
+    <string name="start_sync">Start sync</string>
+    <string name="usb_mtp_camera_sync">USB MTP camera sync</string>
+    <string name="usb_disconnected">USB disconnected</string>
 </resources>

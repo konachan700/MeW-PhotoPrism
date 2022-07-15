@@ -15,18 +15,15 @@ import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import com.github.ybq.android.spinkit.SpinKitView
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.mewhpm.mewphotoprism.AppDatabase
+import com.mewhpm.mewphotoprism.Const
 import com.mewhpm.mewphotoprism.R
 import com.mewhpm.mewphotoprism.entity.AccountEntity
-import com.mewhpm.mewphotoprism.services.MainImageSource
-import com.mewhpm.mewphotoprism.services.UniversalImageSource
+import com.mewhpm.mewphotoprism.services.Storage
+import com.mewhpm.mewphotoprism.services.proto.ReadableStorage
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import kotlin.io.path.name
-
-
-private const val IMAGE_INDEX = "imageIndex"
-private const val ARG_ACCOUNT_ID = "accID"
 
 class ImageViewFragment : Fragment() {
     private var imageIndex: Long? = null
@@ -35,7 +32,7 @@ class ImageViewFragment : Fragment() {
     private var currentImagePath : String? = null
 
     private lateinit var db : AppDatabase
-    private lateinit var imageSource: UniversalImageSource
+    private lateinit var imageSource: ReadableStorage
 
     var imageView : SubsamplingScaleImageView? = null
     var spinner : SpinKitView? = null
@@ -43,15 +40,15 @@ class ImageViewFragment : Fragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
-            imageIndex = it.getLong(IMAGE_INDEX)
-            accountID = it.getLong(ARG_ACCOUNT_ID)
+            imageIndex = it.getLong(Const.ARG_IMAGE_INDEX)
+            accountID = it.getLong(Const.ARG_ACCOUNT_ID)
         }
         if (accountID == -1L) {
             throw IllegalArgumentException("Bad parameter 'accID'")
         }
         db = AppDatabase.getDB(requireContext())
         account = db.AccountsDAO().getByUID(accountID)
-        imageSource = MainImageSource.getInstance(account!!)
+        imageSource = Storage.getInstance(account!!, requireContext(), ReadableStorage::class.java)
     }
 
     private fun reload(index : Int) {
@@ -124,8 +121,8 @@ class ImageViewFragment : Fragment() {
         fun newInstance(account : AccountEntity?, imageIndex : Long) =
             ImageViewFragment().apply {
                 arguments = Bundle().apply {
-                    putLong(IMAGE_INDEX, imageIndex)
-                    putLong(ARG_ACCOUNT_ID, account?.uid ?: -1)
+                    putLong(Const.ARG_IMAGE_INDEX, imageIndex)
+                    putLong(Const.ARG_ACCOUNT_ID, account?.uid ?: -1)
                 }
             }
     }
