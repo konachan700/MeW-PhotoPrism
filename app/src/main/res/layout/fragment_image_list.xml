@@ -3,7 +3,22 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     tools:context=".fragments.ImageListFragment">
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/menuInvokeButton"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="16dp"
+        android:alpha="0.75"
+        android:background="#000000"
+        android:clickable="true"
+        android:foreground="@drawable/icon_menu"
+        android:foregroundGravity="center_vertical|center"
+        android:foregroundTint="#FFFFFF"
+        app:backgroundTint="#000000" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/galleryList"
@@ -19,4 +34,15 @@
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         app:SpinKit_Color="#777777" />
+
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNavView2"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:layout_gravity="bottom"
+        android:alpha="0.8"
+        android:background="#000000"
+        app:itemIconTint="@color/white"
+        app:itemTextColor="@color/white"
+        app:menu="@menu/menu_img_list_bottom" />
 </FrameLayout>

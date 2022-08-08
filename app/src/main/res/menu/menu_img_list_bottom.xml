@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/mainPhotosButton"
+        android:title="@string/photos"
+        android:icon="@drawable/icon_remote_gallery"/>
+    <item
+        android:id="@+id/albumsCalendarButton"
+        android:title="@string/calendar"
+        android:icon="@drawable/icon_calendar"/>
+    <item
+        android:id="@+id/favPhotosButton"
+        android:title="@string/favorites"
+        android:icon="@drawable/icon_favorites"/>
+    <item
+        android:id="@+id/albumsPhotosButton"
+        android:title="@string/albums"
+        android:icon="@drawable/icon_albums"/>
+</menu>

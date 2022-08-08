@@ -12,26 +12,29 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.mewhpm.mewphotoprism.R
 import com.mewhpm.mewphotoprism.entity.AccountEntity
 import com.mewhpm.mewphotoprism.services.Storage
+import com.mewhpm.mewphotoprism.services.proto.DirectoriesStorage
 import com.mewhpm.mewphotoprism.services.proto.ReadableStorage
 import com.mewhpm.mewphotoprism.services.proto.SecuredStorage
+import com.mewhpm.mewphotoprism.view_holders.AlbumItemViewHolder
 import com.mewhpm.mewphotoprism.view_holders.GalleryItemViewHolder
 
-class GalleryListAdapter(
+class DirectoryListAdapter(
+    val type : Int,
     val accountEntity: AccountEntity,
     val context: Context,
     val onClick : (index : Int) -> Unit
-) : RecyclerView.Adapter<GalleryItemViewHolder>() {
+) : RecyclerView.Adapter<AlbumItemViewHolder>() {
     var mainHandler: Handler = Handler(context.mainLooper)
     val selectedItems = HashSet<Int>()
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): GalleryItemViewHolder {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AlbumItemViewHolder {
         val view: View = LayoutInflater
             .from(parent.context)
-            .inflate(R.layout.layout_gallery_item, parent, false)
-        return GalleryItemViewHolder(view)
+            .inflate(R.layout.layout_album_item, parent, false)
+        return AlbumItemViewHolder(view)
     }
 
-    private fun setSelect(holder: GalleryItemViewHolder, position: Int) {
+    private fun setSelect(holder: AlbumItemViewHolder, position: Int) {
         holder.selected.visibility = if (selectedItems.contains(position)) {
             selectedItems.remove(position)
             View.INVISIBLE
@@ -41,23 +44,24 @@ class GalleryListAdapter(
         }
     }
 
-    override fun onBindViewHolder(holder: GalleryItemViewHolder, position: Int) {
+    override fun onBindViewHolder(holder: AlbumItemViewHolder, position: Int) {
         holder.image.setImageResource(android.R.color.transparent)
         if (Storage.getInstance(accountEntity, context, SecuredStorage::class.java).isLogin()) {
             return
         }
-        Storage.getInstance(accountEntity, context, ReadableStorage::class.java).preview(position, {
-            Log.d("IMG", "Image $position loaded")
+        Storage.getInstance(accountEntity, context, DirectoriesStorage::class.java).getDir(position, type, {
+            Log.d("IMG-DIR", "Image $position (${it.name}) loaded")
             mainHandler.post {
+                holder.name.text = it.name
                 Glide
                     .with(context.applicationContext)
-                    .load(it.imageFullPath)
+                    .load(it.cover.imageFullPath)
                     .diskCacheStrategy(DiskCacheStrategy.ALL)
                     .centerCrop()
                     .into(holder.image)
             }
         }, {
-            Log.w("onBindViewHolder","Error while loading image $position")
+            Log.w("onBindViewHolder","Error while loading cover image $position")
             mainHandler.post {
                 holder.image.setImageResource(R.drawable.icon_broken_image)
             }
@@ -76,8 +80,8 @@ class GalleryListAdapter(
     }
 
     override fun getItemCount(): Int {
-        val count = Storage.getInstance(accountEntity, context, ReadableStorage::class.java).getImagesCount()
-        Log.d("IMGCOUNT", "Count = $count")
+        val count = Storage.getInstance(accountEntity, context, DirectoriesStorage::class.java).getDirsCount(type)
+        Log.d("DIRCOUNT", "Count = $count")
         return count
     }
 }

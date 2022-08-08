@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
+import android.os.PowerManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -36,6 +37,12 @@ class UsbCameraSyncFragment : Fragment() {
         .setConstraints(constraints)
         .addTag("MTPCameraSyncService")
 
+    private val powerManager by lazy {
+        requireContext().getSystemService(Context.POWER_SERVICE) as PowerManager
+    }
+    private val wakeLock by lazy {
+        powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "UsbCameraSyncFragment::wakeLock")
+    }
     private val workManager by lazy {
         WorkManager.getInstance(requireContext().applicationContext)
     }
@@ -131,13 +138,21 @@ class UsbCameraSyncFragment : Fragment() {
     }
 
     override fun onResume() {
-        super.onResume()
-        requireActivity().registerReceiver(receiver, IntentFilter(Const.RECEIVER_USB_MTP_CAMERA_FRAGMENT))
+        try {
+            super.onResume()
+            requireActivity().registerReceiver(receiver, IntentFilter(Const.RECEIVER_USB_MTP_CAMERA_FRAGMENT))
+        } finally {
+            wakeLock.acquire(60*60*1000L /*60 minutes*/)
+        }
     }
 
     override fun onPause() {
-        super.onPause()
-        requireActivity().unregisterReceiver(receiver)
+        try {
+            super.onPause()
+            requireActivity().unregisterReceiver(receiver)
+        } finally {
+            wakeLock.release()
+        }
     }
 
     companion object {

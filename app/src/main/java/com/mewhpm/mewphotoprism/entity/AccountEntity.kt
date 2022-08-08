@@ -23,6 +23,7 @@ data class AccountEntity(
                 capabilities.add(WritableStorage::class.java)
                 capabilities.add(CacheableStorage::class.java)
                 capabilities.add(SecuredStorage::class.java)
+                capabilities.add(DirectoriesStorage::class.java)
             }
             Const.XTYPE_MTP_PTP_CAMERA -> {
                 capabilities.add(ReadableStorage::class.java)
@@ -32,6 +33,7 @@ data class AccountEntity(
             Const.XTYPE_LOCAL -> {
                 capabilities.add(ReadableStorage::class.java)
                 capabilities.add(WritableStorage::class.java)
+                capabilities.add(DirectoriesStorage::class.java)
             }
         }
     }

@@ -1,0 +1,31 @@
+package com.mewhpm.mewphotoprism.pojo
+
+data class PhotoprismAlbum(
+    val UID: String,
+    val ParentUID: String,
+    val Thumb: String,
+    val Slug: String,
+    val Type: String,
+    val Title: String,
+    val Location: String,
+    val Category: String,
+    val Caption: String,
+    val Description: String,
+    val Notes: String,
+    val Filter: String,
+    val Order: String,
+    val Template: String,
+    val Path: String,
+    val State: String,
+    val Country: String,
+    val Year: Int,
+    val Month: Int,
+    val Day: Int,
+    val Favorite: Boolean,
+    val Private: Boolean,
+    val PhotoCount: Int,
+    val LinkCount: Int,
+    val CreatedAt: String,
+    val UpdatedAt: String,
+    val DeletedAt: String
+)

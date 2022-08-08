@@ -14,6 +14,7 @@ public class Const {
     public final static String APP_DB_NAME              = "mew-pp-database";
     public final static String SHARED_SETTINGS_NAME     = "com.mewhpm.mewphotoprism";
     public final static String SHARED_SETTINGS_VAL_UID  = "login-uid";
+    public final static String SHARED_SETTINGS_DEFAULT_VIEW  = "default-view";
 
     public final static Integer ACTION_LONG_CLICK     = 1;
     public final static Integer ACTION_SHORT_CLICK    = 0;
@@ -35,4 +36,23 @@ public class Const {
     public final static String BROADCAST_SYNC_STAT_STRING           = "com.mewhpm.mewphotoprism.sync_stat_string";
 
     public final static AccountEntity DEFAULT_USB_CAMERA_ACCOUNT = new AccountEntity(0, null, null, null, null, Const.XTYPE_MTP_PTP_CAMERA);
+
+    public final static Integer IMAGES_CACHE_PAGE_SIZE  = 60;
+    public final static Integer ALBUMS_CACHE_PAGE_SIZE  = 48;
+
+    public final static Integer DIR_TYPE_ALBUM_BY_MONTH = 1;
+    public final static Integer DIR_TYPE_ALBUM_BY_NAME = 2;
+
+    public final static Integer LV_ADAPTER_IMAGES = 0;
+    public final static Integer LV_ADAPTER_ALBUMS_BY_MONTH = DIR_TYPE_ALBUM_BY_MONTH;
+    public final static Integer LV_ADAPTER_ALBUMS_BY_NAME = DIR_TYPE_ALBUM_BY_NAME;
+
+    public final static Integer FILTER_EMPTY = 0;
+    public final static Integer FILTER_ALBUMS_BY_MONTH = DIR_TYPE_ALBUM_BY_MONTH;
+    public final static Integer FILTER_ALBUMS_BY_NAME = DIR_TYPE_ALBUM_BY_NAME;
+    public final static Integer FILTER_FAVORITES_IMAGES = 128;
+
+    public final static String FILTER_AD_MONTH = "f_month";
+    public final static String FILTER_AD_YEAR = "f_year";
+    public final static String FILTER_AD_ALBUM_NAME = "f_alb_name";
 }

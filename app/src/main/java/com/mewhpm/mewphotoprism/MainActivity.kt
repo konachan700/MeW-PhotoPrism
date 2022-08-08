@@ -3,6 +3,7 @@ package com.mewhpm.mewphotoprism
 import android.content.Context
 import android.os.Bundle
 import android.view.Menu
+import android.view.Window
 import androidx.appcompat.app.AppCompatActivity
 import com.mewhpm.mewphotoprism.fragments.AccountsFragment
 import com.mewhpm.mewphotoprism.fragments.ImageListFragment
@@ -11,6 +12,7 @@ class MainActivity : AppCompatActivity() {
     @Suppress("SENSELESS_COMPARISON")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        supportActionBar!!.hide()
         setContentView(R.layout.activity_main)
 
         val settings = getSharedPreferences(Const.SHARED_SETTINGS_NAME, 0)

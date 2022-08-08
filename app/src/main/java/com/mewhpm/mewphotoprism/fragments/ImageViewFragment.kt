@@ -7,6 +7,7 @@ import android.os.Environment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.Window
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
@@ -57,7 +58,7 @@ class ImageViewFragment : Fragment() {
             requireActivity().runOnUiThread {
                 imageView!!.setImage(ImageSource.uri(it));
                 spinner!!.visibility = View.INVISIBLE
-                requireView().findViewById<BottomNavigationView>(R.id.bottomNagView1).visibility = View.VISIBLE
+                requireView().findViewById<BottomNavigationView>(R.id.bottomNavView1).visibility = View.VISIBLE
                 currentImagePath = it
             }
         }, {
@@ -85,7 +86,7 @@ class ImageViewFragment : Fragment() {
         imageView = view.findViewById<SubsamplingScaleImageView>(R.id.imageView1)
         spinner = view.findViewById<SpinKitView>(R.id.waitSpinner2)
 
-        val panel = view.findViewById<BottomNavigationView>(R.id.bottomNagView1)
+        val panel = view.findViewById<BottomNavigationView>(R.id.bottomNavView1)
         panel.visibility = View.INVISIBLE
         panel.setOnItemReselectedListener {
             when (it.itemId) {

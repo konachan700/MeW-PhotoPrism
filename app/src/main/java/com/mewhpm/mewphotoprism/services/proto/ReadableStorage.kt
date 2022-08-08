@@ -9,4 +9,5 @@ interface ReadableStorage {
     fun getImagesCount() : Int
     fun preview(index: Int, onSuccess : (image : SimpleImage) -> Unit, onError : () -> Unit)
     fun download(imageIndex: Int, onSuccess : (path : String) -> Unit, onError : () -> Unit)
+    fun setFilter(filterType : Int, additionalData : Map<String, String>)
 }

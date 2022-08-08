@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="1dp">
+
+    <com.mewhpm.mewphotoprism.views.SquareAlbumView
+        android:id="@+id/galleryAlbumViewItemIV"
+        android:layout_width="match_parent"
+        android:layout_height="0dp" />
+
+    <ImageView
+        android:id="@+id/albumViewSelected"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="56dp"
+        android:visibility="invisible"
+        app:srcCompat="@drawable/icon_selected_image"
+        app:tint="@android:color/holo_green_light"
+        tools:visibility="invisible" />
+
+    <TextView
+        android:id="@+id/txtAlbumName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="bottom|center_horizontal"
+        android:padding="16dp"
+        android:textAlignment="center"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+</FrameLayout>

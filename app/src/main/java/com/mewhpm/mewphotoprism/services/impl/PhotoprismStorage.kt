@@ -2,18 +2,16 @@ package com.mewhpm.mewphotoprism.services.impl
 
 import android.content.Context
 import android.util.Log
-import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.mewhpm.mewphotoprism.AppDatabase
+import com.mewhpm.mewphotoprism.Const
 import com.mewhpm.mewphotoprism.entity.AccountEntity
 import com.mewhpm.mewphotoprism.entity.ImageEntity
-import com.mewhpm.mewphotoprism.exceptions.NotLoggedOnException
 import com.mewhpm.mewphotoprism.exceptions.PhotoprismBadTokenException
 import com.mewhpm.mewphotoprism.exceptions.PhotoprismInvalidLoginPasswordException
-import com.mewhpm.mewphotoprism.pojo.SimpleImage
-import com.mewhpm.mewphotoprism.services.proto.CacheableStorage
-import com.mewhpm.mewphotoprism.services.proto.ReadableStorage
-import com.mewhpm.mewphotoprism.services.proto.SecuredStorage
-import com.mewhpm.mewphotoprism.services.proto.WritableStorage
+import com.mewhpm.mewphotoprism.pojo.*
+import com.mewhpm.mewphotoprism.services.proto.*
+import com.mewhpm.mewphotoprism.utils.FixedFifoQueue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -22,66 +20,105 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.FileOutputStream
-import java.lang.Exception
+import java.lang.reflect.Type
 import java.nio.file.Files
 import java.util.*
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.collections.HashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 class PhotoprismStorage :
     ReadableStorage,
     WritableStorage,
     SecuredStorage,
-    WebSocketListener(),
-    CacheableStorage
+    CacheableStorage,
+    DirectoriesStorage,
+    PhotoprismBaseStorage()
 {
-    private var account   : AccountEntity? = null
-    private var authToken : String? = null
-    private var previewToken : String? = null
-    private var fullSizeToken : String? = null
-    private val okHttpClient = OkHttpClient.Builder()
-        .callTimeout(1200, TimeUnit.SECONDS)
-        .writeTimeout(1200, TimeUnit.SECONDS)
-        .readTimeout(1200, TimeUnit.SECONDS)
-        .followRedirects(true)
-        .build()
-    private var ws : WebSocket? = null
-    private var config : Map<*, *>? = null
-    private val imagesCache = HashMap<Int, Map<*,*>>()
-    private val imageCachePageSize = 60
-    private var onLoginSuccess : (() -> Unit)? = null
-    private var context: Context? = null
     private var transactionID = Date().time
+    private val filter = AtomicInteger(Const.FILTER_EMPTY)
+    private val filterAdditionalData = ConcurrentHashMap<String, String>()
 
-    private fun checkLogin() {
-        if (this.authToken == null) throw NotLoggedOnException("You are not logged on")
-    }
-
-    override fun getImagesCount(): Int {
-        if (this.authToken == null) return 0
-        if (config == null) return 0
-        val countMap = config?.get("count") as Map<*,*>? ?: return 0
-        return (countMap["photos"] as Double? ?: 0.0).toInt()
-    }
-
-    override fun preview(index: Int, onSuccess : (image : SimpleImage) -> Unit, onError : () -> Unit) {
-        val job = CoroutineScope(Dispatchers.IO).launch {
+    private val imagesCahcheList = ConcurrentHashMap<Int, PhotoprismImage>()
+    private val albumsCahcheList = ConcurrentHashMap<Int, ConcurrentHashMap<Int, PhotoprismAlbum>>()
+    private val queue = FixedFifoQueue<PhotoprismPreviewTask>(Const.IMAGES_CACHE_PAGE_SIZE / 2)
+    init {
+        CoroutineScope(Dispatchers.IO).launch {
             runCatching {
-                val image = loadPreview(index)
-                if (image.imageID.isNotEmpty() && image.imageFullPath.isNotEmpty()) {
-                    onSuccess.invoke(image)
-                } else {
-                    onError.invoke()
+                while (true) {
+                    try {
+                        val item = queue.popFromHead() ?: continue
+                        val image = loadPreview(item.index)
+                        if (image.imageID.isNotEmpty() && image.imageFullPath.isNotEmpty()) {
+                            item.onSuccess.invoke(image)
+                        } else {
+                            item.onError.invoke()
+                        }
+                    } catch (t : Throwable) {
+                        t.printStackTrace()
+                    }
                 }
             }
         }
     }
 
-    private fun preloadIndexes(index: Int) : Map<*,*>? {
-        val startIndex = if (index <= (imageCachePageSize / 2)) 0 else (index - (imageCachePageSize / 2))
+    override fun getImagesCount(): Int {
+        return when(filter.get()) {
+            Const.FILTER_EMPTY -> {
+                if (this.authToken == null || config == null) return 0
+                val countMap = config?.get("count") as Map<*,*>? ?: return 0
+                (countMap["photos"] as Double? ?: 0.0).toInt()
+            }
+            // albums do not contain photo count, it's always set as zero
+            Const.FILTER_ALBUMS_BY_NAME,
+            Const.FILTER_ALBUMS_BY_MONTH,
+            Const.FILTER_FAVORITES_IMAGES -> {
+                if (imagesCahcheList.isEmpty()) {
+                    val lock = AtomicBoolean(true)
+                    CoroutineScope(Dispatchers.IO).launch {
+                        runCatching {
+                            try {
+                                preloadIndexes(0)
+                            } finally {
+                                lock.set(false)
+                            }
+                        }
+                    }
+                    while (lock.get()) {
+                        Thread.sleep(10)
+                    }
+                }
+                imagesCahcheList.size
+            }
+            else -> throw IllegalArgumentException()
+        }
+    }
+
+    override fun preview(index: Int, onSuccess : (image : SimpleImage) -> Unit, onError : () -> Unit) {
+        val task = PhotoprismPreviewTask(index, onSuccess, onError)
+        queue.pushToTail(task)
+    }
+
+    private fun preloadIndexes(index: Int) : PhotoprismImage? {
+        var startIndex = 0;
+        val url = when(filter.get()) {
+            Const.FILTER_EMPTY -> {
+                startIndex = if (index <= (Const.IMAGES_CACHE_PAGE_SIZE / 2)) 0 else (index - (Const.IMAGES_CACHE_PAGE_SIZE / 2))
+                "${account!!.url}/api/v1/photos?count=${Const.IMAGES_CACHE_PAGE_SIZE}&offset=${startIndex}&merged=true&order=newest&q=&quality=3"
+            }
+            Const.FILTER_ALBUMS_BY_MONTH -> {
+                val month = filterAdditionalData.getOrDefault(Const.FILTER_AD_MONTH, "1")
+                val year = filterAdditionalData.getOrDefault(Const.FILTER_AD_YEAR, "2000")
+                val album = filterAdditionalData.getOrDefault(Const.FILTER_AD_ALBUM_NAME, "Undefined")
+                "${account!!.url}/api/v1/photos?count=9999&offset=0&album=$album&filter=public:true+year:$year+month:$month&merged=true&order=newest&q=&quality=3"
+            }
+            Const.FILTER_FAVORITES_IMAGES -> {
+                "${account!!.url}/api/v1/photos?count=9999&offset=0&merged=true&country=&camera=0&lens=0&label=&year=0&month=0&color=&order=newest&q=&quality=3&favorite=true"
+            }
+            else -> throw IllegalArgumentException()
+        }
         val request = defaultHeaders(Request.Builder())
-            .url("${account!!.url}/api/v1/photos?count=${imageCachePageSize}&offset=${startIndex}&merged=true&order=newest&q=&quality=3")
+            .url(url)
             .addHeader("Referer", "${account!!.url}/browse")
             .addHeader("X-Session-Id", "$authToken")
             .build()
@@ -90,14 +127,26 @@ class PhotoprismStorage :
             .execute()
             .use { response ->
                 if (response.code == 200) {
-                    val dataList = Gson().fromJson(response.body?.string() ?: "{}", List::class.java) as List<*>
-                    if (dataList.isNotEmpty()) {
-                        for (i in startIndex..(startIndex + imageCachePageSize)) {
-                            if ((i - startIndex) < dataList.size) {
-                                imagesCache[i] = dataList[i - startIndex] as Map<*, *>
+                    val listType: Type = object : TypeToken<ArrayList<PhotoprismImage?>?>() {}.type
+                    val listOfImages = gson.fromJson<ArrayList<PhotoprismImage?>>(response.body?.string() ?: "[]", listType)
+                    if (listOfImages != null && listOfImages.isNotEmpty()) {
+                        when (filter.get()) {
+                            Const.FILTER_EMPTY -> {
+                                for (i in startIndex..(startIndex + Const.IMAGES_CACHE_PAGE_SIZE)) {
+                                    if ((i - startIndex) < listOfImages.size) {
+                                        imagesCahcheList[i] = listOfImages[i - startIndex]!!
+                                    }
+                                }
+                            }
+                            Const.FILTER_ALBUMS_BY_NAME,
+                            Const.FILTER_ALBUMS_BY_MONTH,
+                            Const.FILTER_FAVORITES_IMAGES -> {
+                                for (i in 0 until listOfImages.size) {
+                                    imagesCahcheList[i] = listOfImages[i]!!
+                                }
                             }
                         }
-                        return imagesCache[index]
+                        return imagesCahcheList[index]
                     } else {
                         return null
                     }
@@ -110,7 +159,7 @@ class PhotoprismStorage :
     @Synchronized
     private fun loadPreview(index: Int) : SimpleImage {
         checkLogin()
-        var cachedItem = imagesCache[index] as Map<*,*>?
+        var cachedItem = imagesCahcheList[index]
         if (cachedItem == null) {
             cachedItem = preloadIndexes(index)
             if (cachedItem == null) {
@@ -118,7 +167,7 @@ class PhotoprismStorage :
                 return SimpleImage("", "", Date(0))
             }
         }
-        val name = cachedItem!!["Hash"] as String
+        val name = cachedItem.Hash!!
         val path = "${account!!.url}/api/v1/t/${name}/${previewToken}/tile_224"
         val image = SimpleImage(name, path, Date()) // TODO: Add real date from "CreatedAt"
         Log.d("IMAGE", "name = $name; path = $path")
@@ -129,7 +178,7 @@ class PhotoprismStorage :
     override fun login(acc: AccountEntity, context: Context, onSuccess : () -> Unit) {
         onLoginSuccess = onSuccess
         this.context = context
-        val job = CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(Dispatchers.IO).launch {
             account = acc
             val request = defaultHeaders(Request.Builder())
                 .url("${account!!.url}/api/v1/session")
@@ -167,8 +216,8 @@ class PhotoprismStorage :
 
     override fun download(imageIndex: Int, onSuccess : (path : String) -> Unit, onError : () -> Unit) {
         checkLogin()
-        val job = CoroutineScope(Dispatchers.IO).launch {
-            var cachedItem = imagesCache[imageIndex] as Map<*, *>?
+        CoroutineScope(Dispatchers.IO).launch {
+            var cachedItem = imagesCahcheList[imageIndex]
             if (cachedItem == null) {
                 cachedItem = preloadIndexes(imageIndex)
                 if (cachedItem == null) {
@@ -176,8 +225,8 @@ class PhotoprismStorage :
                     return@launch
                 }
             }
-            val name = cachedItem!!["Hash"] as String
-            val fileName = (cachedItem!!["FileName"] as String).replace('/', '_')
+            val name = cachedItem.Hash!!
+            val fileName = cachedItem.FileName!!.replace('/', '_')
             val tFile = getTemporaryFile(fileName) ?: return@launch
 
             if (tFile.exists() && tFile.isFile) {
@@ -195,7 +244,7 @@ class PhotoprismStorage :
                     val response = okHttpClient.newCall(request).execute()
                     val stream = response.body!!.byteStream()
                     FileOutputStream(tFile).use {
-                        stream.copyTo(it!!, 1024)
+                        stream.copyTo(it, 1024)
                     }
                     response.body?.close()
                     onSuccess(tFile.absolutePath)
@@ -207,69 +256,15 @@ class PhotoprismStorage :
         }
     }
 
-    private fun getTemporaryFile(name: String): File? {
-        val dir = File(context!!.cacheDir, "PhotoprismImageSource")
-        if (dir.exists()) return File(dir, name)
-        if (!dir.mkdirs()) {
-            Log.w("FS", "Cannot create directory for cahce files: ${dir.absolutePath}")
-            return null
-        }
-        return File(dir, name)
+    override fun setFilter(filterType: Int, additionalData: Map<String, String>) {
+        imagesCahcheList.clear()
+        filter.set(filterType)
+        filterAdditionalData.clear()
+        filterAdditionalData.putAll(additionalData)
     }
 
     override fun isLogin(): Boolean {
         return this.authToken == null
-    }
-
-    private fun websocketOpen(account: AccountEntity) {
-        val request = defaultHeaders(Request.Builder())
-            .url("${account.url}/api/v1/ws")
-            .addHeader("Cache-Control", "no-cache")
-            .addHeader("Pragma", "no-cache")
-            .build()
-        ws = okHttpClient.newWebSocket(request, this)
-    }
-
-    private fun defaultHeaders(builder : Request.Builder) : Request.Builder {
-        builder
-            .addHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:91.0) Gecko/20100101 Firefox/91.0")
-            .addHeader("Accept", "application/json, text/plain, */*")
-            .addHeader("Accept-Language", "en-US,en;q=0.5")
-            .addHeader("Accept-Encoding", "gzip, deflate")
-        return builder
-    }
-
-    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-        super.onFailure(webSocket, t, response)
-        if (this.authToken == null) {
-            websocketOpen(this.account!!)
-        }
-    }
-
-    override fun onOpen(webSocket: WebSocket, response: Response) {
-        super.onOpen(webSocket, response)
-        val data = "{\"session\":\"${this.authToken}\"," +
-                "\"cssUri\":\"/static/build/app.7b7be7e186ad53e98951.css\"," +
-                "\"jsUri\":\"/static/build/app.6184d1cc21bc6c21a255.js\"," +
-                "\"version\":\"220302-0059f429-Linux-AMD64\"}"
-        webSocket.send(data)
-    }
-
-    override fun onMessage(webSocket: WebSocket, text: String) {
-        super.onMessage(webSocket, text)
-        val data = Gson().fromJson<Map<String, *>>(text, Map::class.java)
-        when (data["event"]) {
-            "config.updated" -> {
-                val dataMap = data["data"] as Map<*, *>
-                config = dataMap["config"] as Map<*, *>
-                previewToken = config!!["previewToken"] as String
-                fullSizeToken = config!!["downloadToken"] as String
-                onLoginSuccess!!.invoke()
-            }
-            null -> {
-
-            }
-        }
     }
 
     override fun garbargeCollector() {
@@ -313,7 +308,6 @@ class PhotoprismStorage :
                 .execute()
                 .use { response ->
                     if (response.code == 200) {
-                        val gson = Gson()
                         val dataList = gson.fromJson(response.body?.string() ?: "{}", List::class.java) as List<*>
                         if (dataList.isNotEmpty()) {
                             val dataMap = dataList.first() as Map<*, *>
@@ -385,5 +379,91 @@ class PhotoprismStorage :
                 }
             }
         transactionID = 0
+    }
+
+    private fun getAlbum(type : Int) : ConcurrentHashMap<Int, PhotoprismAlbum> {
+        if (!albumsCahcheList.containsKey(type)) {
+            albumsCahcheList[type] = ConcurrentHashMap()
+        }
+        return albumsCahcheList[type]!!
+    }
+
+    override fun getDirsCount(type: Int): Int {
+        if (this.authToken == null || config == null) return 0
+        val countMap = config?.get("count") as Map<*,*>? ?: return 0
+        return (countMap[
+                when (type) {
+                    Const.DIR_TYPE_ALBUM_BY_MONTH -> "months"
+                    else -> throw IllegalArgumentException("Bad directory type $type")
+                }
+        ] as Double? ?: 0.0).toInt()
+    }
+
+    override fun getDir(index: Int, type: Int, onSuccess: (dir: SimpleDirectory) -> Unit, onError: () -> Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val album = getAlbum(type)
+                if (!album.contains(index)) {
+                    val startIndex = if (index <= (Const.ALBUMS_CACHE_PAGE_SIZE / 2)) 0 else (index - (Const.ALBUMS_CACHE_PAGE_SIZE / 2))
+                    val url : String = when (type) {
+                        Const.DIR_TYPE_ALBUM_BY_MONTH ->
+                            "${account!!.url}/api/v1/albums?count=${Const.ALBUMS_CACHE_PAGE_SIZE}&offset=${startIndex}&q=&category=&type=month&order=newest"
+                        else -> throw IllegalArgumentException("Unsupported directory type $type")
+                    }
+                    val request = defaultHeaders(Request.Builder())
+                        .url(url)
+                        .addHeader("Referer", "${account!!.url}/browse")
+                        .addHeader("X-Session-Id", "$authToken")
+                        .build()
+                    okHttpClient
+                        .newCall(request)
+                        .execute()
+                        .use { response ->
+                            if (response.code == 200) {
+                                val listType: Type = object : TypeToken<ArrayList<PhotoprismAlbum?>?>() {}.type
+                                val listOfImages = gson.fromJson<ArrayList<PhotoprismAlbum?>>(response.body?.string() ?: "[]", listType)
+                                if (listOfImages != null && listOfImages.isNotEmpty()) {
+                                    for (i in startIndex..(startIndex + Const.ALBUMS_CACHE_PAGE_SIZE)) {
+                                        if ((i - startIndex) < listOfImages.size) {
+                                            album[i] = listOfImages[i - startIndex]!!
+                                        }
+                                    }
+                                }
+                            } else {
+                                throw RuntimeException("Invalid auth token or bad request. Code: ${response.code}")
+                            }
+                        }
+                }
+                val name: String
+                val path: String
+                onSuccess.invoke(
+                    SimpleDirectory(
+                        when (type) {
+                            Const.DIR_TYPE_ALBUM_BY_MONTH -> {
+                                path = "${account!!.url}/api/v1/t/${album[index]!!.Thumb}/${previewToken}/tile_500"
+                                name = "${album[index]!!.Month}.${album[index]!!.Year}"
+                                name
+                            }
+                            else -> throw IllegalArgumentException("Unsupported directory type $type")
+                        },
+                        SimpleImage(
+                            name, path, Date()
+                        )
+                    )
+                )
+            } catch (e : Exception) {
+                e.printStackTrace()
+                onError.invoke()
+            }
+        }
+    }
+
+    override fun getDirMetadata(index: Int, type: Int): Map<String, String> {
+        val album = getAlbum(type)
+        return mapOf(
+            Const.FILTER_AD_MONTH to "${album[index]!!.Month}",
+            Const.FILTER_AD_YEAR to "${album[index]!!.Year}",
+            Const.FILTER_AD_ALBUM_NAME to album[index]!!.UID
+        )
     }
 }

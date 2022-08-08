@@ -18,4 +18,8 @@
     <string name="start_sync">Start sync</string>
     <string name="usb_mtp_camera_sync">USB MTP camera sync</string>
     <string name="usb_disconnected">USB disconnected</string>
+    <string name="photos">Photos</string>
+    <string name="favorites">Favorites</string>
+    <string name="albums">Albums</string>
+    <string name="calendar">Calendar</string>
 </resources>

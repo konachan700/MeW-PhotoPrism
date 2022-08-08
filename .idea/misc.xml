@@ -14,9 +14,11 @@
         <entry key="app/src/main/res/layout/fragment_image_view.xml" value="0.21614583333333334" />
         <entry key="app/src/main/res/layout/fragment_usb_camera_sync.xml" value="0.25885416666666666" />
         <entry key="app/src/main/res/layout/layout_account_item.xml" value="0.37447916666666664" />
+        <entry key="app/src/main/res/layout/layout_album_item.xml" value="0.37447916666666664" />
         <entry key="app/src/main/res/layout/layout_gallery_item.xml" value="0.21614583333333334" />
         <entry key="app/src/main/res/layout/menu_bottom_image_view.xml" value="0.2706812652068126" />
         <entry key="app/src/main/res/menu/menu_images_list.xml" value="0.23177083333333334" />
+        <entry key="app/src/main/res/menu/menu_img_list_bottom.xml" value="0.23177083333333334" />
         <entry key="app/src/main/res/menu/menu_img_view_bottom.xml" value="0.23072916666666668" />
         <entry key="app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml" value="0.238" />
         <entry key="app/src/main/res/xml/provider_paths.xml" value="0.23177083333333334" />

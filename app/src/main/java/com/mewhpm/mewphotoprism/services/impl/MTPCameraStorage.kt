@@ -89,6 +89,10 @@ class MTPCameraStorage :
         }
     }
 
+    override fun setFilter(filterType: Int, additionalData: Map<String, String>) {
+
+    }
+
     override fun deviceAdded(device: MtpDevice?) {
         imagesList.clear()
         CoroutineScope(Dispatchers.IO).launch {
