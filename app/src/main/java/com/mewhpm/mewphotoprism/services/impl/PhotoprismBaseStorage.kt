@@ -5,6 +5,8 @@ import android.util.Log
 import com.google.gson.Gson
 import com.mewhpm.mewphotoprism.entity.AccountEntity
 import com.mewhpm.mewphotoprism.exceptions.NotLoggedOnException
+import com.mewhpm.mewphotoprism.utils.disableHostsVerify
+import com.mewhpm.mewphotoprism.utils.disableSslVerify
 import okhttp3.*
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -15,10 +17,14 @@ abstract class PhotoprismBaseStorage : WebSocketListener() {
     var previewToken : String? = null
     var fullSizeToken : String? = null
     val okHttpClient = OkHttpClient.Builder()
-        .callTimeout(1200, TimeUnit.SECONDS)
-        .writeTimeout(1200, TimeUnit.SECONDS)
-        .readTimeout(1200, TimeUnit.SECONDS)
+        // TODO: add separate flag in setting for ignore self-signed certs
+        .disableSslVerify()
+        .disableHostsVerify()
+        .callTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
         .followRedirects(true)
+        .followSslRedirects(true)
         .build()
     var ws : WebSocket? = null
     var config : Map<*, *>? = null
@@ -60,6 +66,7 @@ abstract class PhotoprismBaseStorage : WebSocketListener() {
 
     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
         super.onFailure(webSocket, t, response)
+        Log.e("NET", "Websocket error: " + t.message)
         if (this.authToken == null) {
             websocketOpen(this.account!!)
         }

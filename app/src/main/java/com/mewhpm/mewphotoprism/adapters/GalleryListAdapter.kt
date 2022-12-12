@@ -14,7 +14,10 @@ import com.mewhpm.mewphotoprism.entity.AccountEntity
 import com.mewhpm.mewphotoprism.services.Storage
 import com.mewhpm.mewphotoprism.services.proto.ReadableStorage
 import com.mewhpm.mewphotoprism.services.proto.SecuredStorage
+import com.mewhpm.mewphotoprism.utils.download
+import com.mewhpm.mewphotoprism.utils.getTemporaryFileForPreview
 import com.mewhpm.mewphotoprism.view_holders.GalleryItemViewHolder
+import okhttp3.OkHttpClient
 
 class GalleryListAdapter(
     val accountEntity: AccountEntity,
@@ -23,6 +26,7 @@ class GalleryListAdapter(
 ) : RecyclerView.Adapter<GalleryItemViewHolder>() {
     var mainHandler: Handler = Handler(context.mainLooper)
     val selectedItems = HashSet<Int>()
+    val http = OkHttpClient()
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): GalleryItemViewHolder {
         val view: View = LayoutInflater
@@ -47,15 +51,24 @@ class GalleryListAdapter(
             return
         }
         Storage.getInstance(accountEntity, context, ReadableStorage::class.java).preview(position, {
-            Log.d("IMG", "Image $position loaded")
-            mainHandler.post {
-                Glide
-                    .with(context.applicationContext)
-                    .load(it.imageFullPath)
-                    .diskCacheStrategy(DiskCacheStrategy.ALL)
-                    .centerCrop()
-                    .into(holder.image)
-            }
+            //Log.d("IMG", "Image $position loaded")
+            val file = http.getTemporaryFileForPreview(it.imageID, context)
+            http.download(it.imageFullPath, file.path, { path ->
+                mainHandler.post {
+                    try {
+                        Glide
+                            .with(context.applicationContext)
+                            .load(path)
+                            .diskCacheStrategy(DiskCacheStrategy.NONE)
+                            .centerCrop()
+                            .into(holder.image)
+                    } catch (t : Throwable) {
+                        Log.e("GLIDE", "Error ${t.message}")
+                    }
+                }
+            }, { err ->
+                Log.e("PREVIEW", "Error: ${err.message}")
+            })
         }, {
             Log.w("onBindViewHolder","Error while loading image $position")
             mainHandler.post {

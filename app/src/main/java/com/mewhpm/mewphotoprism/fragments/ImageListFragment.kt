@@ -3,7 +3,9 @@ package com.mewhpm.mewphotoprism.fragments
 import android.os.Bundle
 import android.os.Parcelable
 import android.util.Log
-import android.view.*
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.widget.PopupMenu
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.GridLayoutManager
@@ -11,7 +13,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.github.ybq.android.spinkit.SpinKitView
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import com.mewhpm.mewphotoprism.*
+import com.mewhpm.mewphotoprism.AppDatabase
+import com.mewhpm.mewphotoprism.Const
+import com.mewhpm.mewphotoprism.R
 import com.mewhpm.mewphotoprism.adapters.DirectoryListAdapter
 import com.mewhpm.mewphotoprism.adapters.GalleryListAdapter
 import com.mewhpm.mewphotoprism.entity.AccountEntity
@@ -49,6 +53,7 @@ class ImageListFragment : Fragment() {
         account = db.AccountsDAO().getByUID(accountID)
         imageSource = Storage.getInstance(account!!, requireContext(), SecuredStorage::class.java)
 
+        Log.d("MSG", "Login...")
         imageSource.login(account!!, requireContext().applicationContext) {
             Log.d("MSG", "Login ok")
             isLoggedOn.set(true)

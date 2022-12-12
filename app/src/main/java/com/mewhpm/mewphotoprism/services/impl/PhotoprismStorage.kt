@@ -15,8 +15,9 @@ import com.mewhpm.mewphotoprism.utils.FixedFifoQueue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.FileOutputStream
@@ -26,6 +27,7 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+
 
 class PhotoprismStorage :
     ReadableStorage,
@@ -55,6 +57,7 @@ class PhotoprismStorage :
                             item.onError.invoke()
                         }
                     } catch (t : Throwable) {
+                        Log.e("WORKER", "Error ${t.message}")
                         t.printStackTrace()
                     }
                 }
@@ -128,7 +131,8 @@ class PhotoprismStorage :
             .use { response ->
                 if (response.code == 200) {
                     val listType: Type = object : TypeToken<ArrayList<PhotoprismImage?>?>() {}.type
-                    val listOfImages = gson.fromJson<ArrayList<PhotoprismImage?>>(response.body?.string() ?: "[]", listType)
+                    val data = response.body?.string()
+                    val listOfImages = gson.fromJson<ArrayList<PhotoprismImage?>>(data ?: "[]", listType)
                     if (listOfImages != null && listOfImages.isNotEmpty()) {
                         when (filter.get()) {
                             Const.FILTER_EMPTY -> {
@@ -148,9 +152,11 @@ class PhotoprismStorage :
                         }
                         return imagesCahcheList[index]
                     } else {
+                        Log.w("PRELOAD", data ?: "null")
                         return null
                     }
                 } else {
+                    Log.e("PRELOAD", "Invalid auth token or bad request.")
                     throw RuntimeException("Invalid auth token or bad request. Code: ${response.code}")
                 }
             }
@@ -187,20 +193,24 @@ class PhotoprismStorage :
                 .post("{\"username\": \"${account!!.user}\", \"password\": \"${account!!.pass}\"}".toRequestBody("application/json".toMediaType()))
                 .build()
             runCatching {
-                okHttpClient
-                    .newCall(request)
-                    .execute()
-                    .use { response ->
-                        if (response.code == 200) {
-                            authToken = response.header("X-Session-Id")
-                            if (authToken == null) {
-                                throw PhotoprismBadTokenException("Bad token returned or invalid login/password.")
+                try {
+                    okHttpClient
+                        .newCall(request)
+                        .execute()
+                        .use { response ->
+                            if (response.code == 200) {
+                                authToken = response.header("X-Session-Id")
+                                if (authToken == null) {
+                                    throw PhotoprismBadTokenException("Bad token returned or invalid login/password.")
+                                }
+                                websocketOpen(account!!)
+                            } else {
+                                throw PhotoprismInvalidLoginPasswordException("Invalid login/password.")
                             }
-                            websocketOpen(account!!)
-                        } else {
-                            throw PhotoprismInvalidLoginPasswordException("Invalid login/password.")
                         }
-                    }
+                } catch (t : Throwable) {
+                    Log.e("LOGIN","Error: ${t.message}")
+                }
             }
         }
     }
@@ -217,41 +227,48 @@ class PhotoprismStorage :
     override fun download(imageIndex: Int, onSuccess : (path : String) -> Unit, onError : () -> Unit) {
         checkLogin()
         CoroutineScope(Dispatchers.IO).launch {
-            var cachedItem = imagesCahcheList[imageIndex]
-            if (cachedItem == null) {
-                cachedItem = preloadIndexes(imageIndex)
+            try {
+                var cachedItem = imagesCahcheList[imageIndex]
                 if (cachedItem == null) {
-                    onError.invoke()
+                    cachedItem = preloadIndexes(imageIndex)
+                    if (cachedItem == null) {
+                        onError.invoke()
+                        return@launch
+                    }
+                }
+                val name = cachedItem.Hash!!
+                val fileName = cachedItem.FileName!!.replace('/', '_')
+                val tFile = getTemporaryFile(fileName) ?: return@launch
+
+                if (tFile.exists() && tFile.isFile) {
+                    onSuccess(tFile.absolutePath)
                     return@launch
                 }
-            }
-            val name = cachedItem.Hash!!
-            val fileName = cachedItem.FileName!!.replace('/', '_')
-            val tFile = getTemporaryFile(fileName) ?: return@launch
+                garbargeCollector()
 
-            if (tFile.exists() && tFile.isFile) {
-                onSuccess(tFile.absolutePath)
-                return@launch
-            }
-            garbargeCollector()
-
-            val request = defaultHeaders(Request.Builder())
-                .url("${account!!.url}/api/v1/dl/${name}?t=${fullSizeToken}")
-                .addHeader("Referer", "${account!!.url}/browse")
-                .build()
-            runCatching {
-                try {
-                    val response = okHttpClient.newCall(request).execute()
-                    val stream = response.body!!.byteStream()
-                    FileOutputStream(tFile).use {
-                        stream.copyTo(it, 1024)
+                val request = defaultHeaders(Request.Builder())
+                    .url("${account!!.url}/api/v1/dl/${name}?t=${fullSizeToken}")
+                    .addHeader("Referer", "${account!!.url}/browse")
+                    .build()
+                runCatching {
+                    try {
+                        val response = okHttpClient.newCall(request).execute()
+                        val stream = response.body!!.byteStream()
+                        FileOutputStream(tFile).use {
+                            stream.copyTo(it, 1024)
+                        }
+                        response.body?.close()
+                        onSuccess(tFile.absolutePath)
+                    } catch (ex: Exception) {
+                        Log.e(
+                            "FS",
+                            "Error: ${ex::class.java.canonicalName}; message: ${ex.message}"
+                        )
+                        onError.invoke()
                     }
-                    response.body?.close()
-                    onSuccess(tFile.absolutePath)
-                } catch (ex: Exception) {
-                    Log.w("FS", "Error: ${ex::class.java.canonicalName}; message: ${ex.message}")
-                    onError.invoke()
                 }
+            } catch (t : Throwable) {
+                Log.e("DOWNLOAD", "Error: ${t.message}")
             }
         }
     }
