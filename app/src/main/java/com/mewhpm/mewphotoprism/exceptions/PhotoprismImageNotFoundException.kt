@@ -1,7 +1,6 @@
 package com.mewhpm.mewphotoprism.exceptions
 
-@Deprecated("too old")
-class PhotoprismBadTokenException : Exception {
+class PhotoprismImageNotFoundException : Exception {
     constructor() : super()
     constructor(message: String?) : super(message)
     constructor(message: String?, cause: Throwable?) : super(message, cause)

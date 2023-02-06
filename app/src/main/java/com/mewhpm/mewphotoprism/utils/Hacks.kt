@@ -1,14 +1,19 @@
 package com.mewhpm.mewphotoprism.utils
 
+import android.app.ActivityManager
 import android.content.Context
 import android.util.Log
+import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
+import java.io.OutputStream
 import java.security.SecureRandom
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
@@ -99,4 +104,39 @@ fun OkHttpClient.Builder.disableSslVerify() : OkHttpClient.Builder {
         init(null, trustAllCerts, SecureRandom())
     }.socketFactory
     return this.sslSocketFactory(insecureSocketFactory, x509TrustManager)
+}
+
+@Suppress("DEPRECATION") // Deprecated for third party Services.
+fun <T> Context.isServiceRunning(service: Class<T>) =
+    (getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
+        .getRunningServices(Integer.MAX_VALUE)
+        .filter { it.foreground }
+        .any { it.service.className == service.name }
+
+fun InputStream.copyToWithProgress(
+    out: OutputStream,
+    bufferSize: Int = DEFAULT_BUFFER_SIZE,
+    progress : ((copied : Long) -> Unit)?): Long {
+    var bytesCopied: Long = 0
+    val buffer = ByteArray(bufferSize)
+    var bytes = read(buffer)
+    while (bytes >= 0) {
+        out.write(buffer, 0, bytes)
+        bytesCopied += bytes
+        bytes = read(buffer)
+        progress?.invoke(bytesCopied)
+    }
+    return bytesCopied
+}
+
+fun AppCompatActivity.runIO(runnable : () -> Unit, error : (e: Exception) -> Unit = { it.printStackTrace() }) : Job {
+    return CoroutineScope(Dispatchers.IO).launch {
+        runCatching {
+            try {
+                runnable.invoke()
+            } catch (e: Exception) {
+                error.invoke(e)
+            }
+        }
+    }
 }

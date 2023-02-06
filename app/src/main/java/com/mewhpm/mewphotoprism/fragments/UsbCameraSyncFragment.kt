@@ -15,17 +15,15 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.work.*
+import com.mewhpm.mewphotoprism.ARG_ACCOUNT_ID
 import com.mewhpm.mewphotoprism.Const
 import com.mewhpm.mewphotoprism.R
-import com.mewhpm.mewphotoprism.services.MTPCameraSyncService
-import com.mewhpm.mewphotoprism.services.Storage
-import com.mewhpm.mewphotoprism.services.proto.MetadataStorage
 import java.util.concurrent.atomic.AtomicBoolean
 
 class UsbCameraSyncFragment : Fragment() {
     private var accountID : Long = -1
     private var currentView : View?  = null
-    private var cameraMetadataStorage : MetadataStorage? = null
+   // private var cameraMetadataStorage : MetadataStorage? = null
 
     private val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -33,9 +31,9 @@ class UsbCameraSyncFragment : Fragment() {
         .setRequiresBatteryNotLow(true)
         .build()
     private val inputData = Data.Builder()
-    private val mtpCameraWorkerBuilder = OneTimeWorkRequestBuilder<MTPCameraSyncService>()
-        .setConstraints(constraints)
-        .addTag("MTPCameraSyncService")
+//    private val mtpCameraWorkerBuilder = OneTimeWorkRequestBuilder<MTPCameraSyncService>()
+//        .setConstraints(constraints)
+//        .addTag("MTPCameraSyncService")
 
     private val powerManager by lazy {
         requireContext().getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -56,8 +54,8 @@ class UsbCameraSyncFragment : Fragment() {
                     val connected = bundle.getBoolean(Const.BROADCAST_CAMERA_CONNECTED, false)
                     requireActivity().runOnUiThread {
                         if (connected) {
-                            val meta = cameraMetadataStorage!!.getGlobalMetadata()
-                            uiConnected(meta)
+//                            val meta = cameraMetadataStorage!!.getGlobalMetadata()
+//                            uiConnected(meta)
                         } else {
                             uiNotConnected()
                         }
@@ -78,14 +76,14 @@ class UsbCameraSyncFragment : Fragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
-            accountID = it.getLong(Const.ARG_ACCOUNT_ID)
+            accountID = it.getLong(ARG_ACCOUNT_ID)
         }
         if (accountID == -1L) {
             throw IllegalArgumentException("Bad parameter 'accID'")
         }
-        cameraMetadataStorage = Storage.getInstance(Const.DEFAULT_USB_CAMERA_ACCOUNT, requireContext(), MetadataStorage::class.java)
-        val data = inputData.putLong(Const.ARG_ACCOUNT_ID, accountID).build()
-        mtpCameraWorkerBuilder.setInputData(data)
+        //cameraMetadataStorage = Storage.getInstance(Const.DEFAULT_USB_CAMERA_ACCOUNT, requireContext(), MetadataStorage::class.java)
+        val data = inputData.putLong(ARG_ACCOUNT_ID, accountID).build()
+        //mtpCameraWorkerBuilder.setInputData(data)
     }
 
     private fun uiNotConnected() {
@@ -115,21 +113,21 @@ class UsbCameraSyncFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         currentView = inflater.inflate(R.layout.fragment_usb_camera_sync, container, false)
-        if (cameraMetadataStorage != null) {
-            val meta = cameraMetadataStorage!!.getGlobalMetadata()
-            val isConn = meta[Const.BROADCAST_CAMERA_CONNECTED] as Boolean
-            if (isConn) {
-                uiConnected(meta)
-            } else {
-                uiNotConnected()
-            }
-        }
+//        if (cameraMetadataStorage != null) {
+//            val meta = cameraMetadataStorage!!.getGlobalMetadata()
+//            val isConn = meta[Const.BROADCAST_CAMERA_CONNECTED] as Boolean
+//            if (isConn) {
+//                uiConnected(meta)
+//            } else {
+//                uiNotConnected()
+//            }
+//        }
 
         val btnSync = currentView!!.findViewById<Button>(R.id.start_stop_button)
         btnSync.setOnClickListener {
             val list = workManager.getWorkInfosForUniqueWork("MTPCameraSyncService").get()
             if (list.none { e -> e.state == WorkInfo.State.RUNNING }) {
-                workManager.enqueueUniqueWork("MTPCameraSyncService", ExistingWorkPolicy.REPLACE, mtpCameraWorkerBuilder.build())
+                //workManager.enqueueUniqueWork("MTPCameraSyncService", ExistingWorkPolicy.REPLACE, mtpCameraWorkerBuilder.build())
                 btnSync.isEnabled = false
             }
         }
@@ -160,7 +158,7 @@ class UsbCameraSyncFragment : Fragment() {
         fun newInstance(accID : Long) =
             UsbCameraSyncFragment().apply {
                 arguments = Bundle().apply {
-                    putLong(Const.ARG_ACCOUNT_ID, accID)
+                    putLong(ARG_ACCOUNT_ID, accID)
                 }
             }
     }

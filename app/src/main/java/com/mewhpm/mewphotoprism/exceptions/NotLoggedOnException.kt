@@ -1,7 +1,6 @@
 package com.mewhpm.mewphotoprism.exceptions
 
-import java.lang.Exception
-
+@Deprecated("too old")
 class NotLoggedOnException : Exception {
     constructor() : super()
     constructor(message: String?) : super(message)

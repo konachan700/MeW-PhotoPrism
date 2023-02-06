@@ -5,15 +5,19 @@
         android:title="@string/photos"
         android:icon="@drawable/icon_remote_gallery"/>
     <item
-        android:id="@+id/albumsCalendarButton"
-        android:title="@string/calendar"
-        android:icon="@drawable/icon_calendar"/>
-    <item
         android:id="@+id/favPhotosButton"
         android:title="@string/favorites"
         android:icon="@drawable/icon_favorites"/>
     <item
+        android:id="@+id/albumsCalendarButton"
+        android:title="@string/calendar"
+        android:icon="@drawable/icon_calendar"/>
+    <item
+        android:id="@+id/albumsDirsButton"
+        android:title="@string/dirs"
+        android:icon="@drawable/icon_albums"/>
+    <item
         android:id="@+id/albumsPhotosButton"
         android:title="@string/albums"
-        android:icon="@drawable/icon_albums"/>
+        android:icon="@drawable/icon_remote_gallery"/>
 </menu>

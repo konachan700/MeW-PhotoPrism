@@ -1,4 +1,4 @@
-package com.mewhpm.mewphotoprism.services;
+package com.mewhpm.mewphotoprism.clients;
 
 /*
  * Copyright (C) 2010 The Android Open Source Project

@@ -11,6 +11,9 @@ interface ImageRecordsDAO {
     @Query("SELECT * FROM image_records WHERE day=:day AND month=:month AND year=:year AND name=:name")
     fun findAll(name: String, year : Int, month : Int, day : Int): List<ImageEntity>
 
+    @Query("SELECT * FROM image_records WHERE name=:name")
+    fun findAll(name: String): List<ImageEntity>
+
     @Insert
     fun insertAll(vararg imageEntity: ImageEntity)
 

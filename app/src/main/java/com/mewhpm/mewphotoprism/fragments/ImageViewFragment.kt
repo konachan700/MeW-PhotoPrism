@@ -7,7 +7,6 @@ import android.os.Environment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.Window
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
@@ -15,70 +14,109 @@ import com.davemorrissey.labs.subscaleview.ImageSource
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import com.github.ybq.android.spinkit.SpinKitView
 import com.google.android.material.bottomnavigation.BottomNavigationView
-import com.mewhpm.mewphotoprism.AppDatabase
-import com.mewhpm.mewphotoprism.Const
-import com.mewhpm.mewphotoprism.R
+import com.mewhpm.mewphotoprism.*
 import com.mewhpm.mewphotoprism.entity.AccountEntity
-import com.mewhpm.mewphotoprism.services.Storage
-import com.mewhpm.mewphotoprism.services.proto.ReadableStorage
+import com.mewhpm.mewphotoprism.services.helpers.PhotoprismHelper
+import com.mewhpm.mewphotoprism.services.helpers.PhotoprismPredefinedFilters
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.name
 
 class ImageViewFragment : Fragment() {
-    private var imageIndex: Long? = null
-    private var account : AccountEntity? = null
-    private var accountID : Long = -1
-    private var currentImagePath : String? = null
+    private var imageIndex          : Long? = null
+    private var account             : AccountEntity? = null
+    private var accountID           : Long = -1
+    private var currentImagePath    : String? = null
+    private var filter              : PhotoprismPredefinedFilters? = null
+    private var extra               : HashMap<String, Any>? = null
 
     private lateinit var db : AppDatabase
-    private lateinit var imageSource: ReadableStorage
 
     var imageView : SubsamplingScaleImageView? = null
     var spinner : SpinKitView? = null
 
+    private fun getPhotoprismService() : PhotoprismHelper {
+        return (requireActivity() as MainActivity).fgService!!.photoprismHelper!!
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
-            imageIndex = it.getLong(Const.ARG_IMAGE_INDEX)
-            accountID = it.getLong(Const.ARG_ACCOUNT_ID)
+            imageIndex = it.getLong(ARG_IMAGE_INDEX)
+            accountID = it.getLong(ARG_ACCOUNT_ID)
+            //filter = it.getSerializable(ARG_FILTER) as PhotoprismPredefinedFilters
+            //extra = it.getSerializable(ARG_EXTRA) as HashMap<String, Any>
         }
         if (accountID == -1L) {
             throw IllegalArgumentException("Bad parameter 'accID'")
         }
         db = AppDatabase.getDB(requireContext())
         account = db.AccountsDAO().getByUID(accountID)
-        imageSource = Storage.getInstance(account!!, requireContext(), ReadableStorage::class.java)
     }
 
-    private fun reload(index : Int) {
-        if (index > 0) imageIndex = index.toLong()
-        imageSource.download(imageIndex!!.toInt(), {
-            requireActivity().runOnUiThread {
-                imageView!!.setImage(ImageSource.uri(it));
-                spinner!!.visibility = View.INVISIBLE
-                requireView().findViewById<BottomNavigationView>(R.id.bottomNavView1).visibility = View.VISIBLE
-                currentImagePath = it
+    private fun reload(filter : PhotoprismPredefinedFilters, extra : HashMap<String, Any>, index : Int) {
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching {
+                if (index > 0) {
+                    imageIndex = index.toLong()
+                } else {
+                    requireActivity().runOnUiThread {
+                        // TODO: add error message
+                        imageView!!.visibility = View.INVISIBLE
+                        spinner!!.visibility = View.INVISIBLE
+                    }
+                    return@runCatching
+                }
+                try {
+                    val svc = getPhotoprismService()
+                    // TODO: add selector for big preview (fastly) or original (slowly, but high quality)
+                    val img = svc.getImage(requireContext(), filter, extra, index)
+                    val file = getPhotoprismService()
+                        .downloadOriginalAsFile(
+                            requireContext(),
+                            img.hash
+                        ) { fileSize, downloaded ->
+                            // TODO: add progress
+                        }
+                    requireActivity().runOnUiThread {
+                        imageView!!.setImage(ImageSource.uri(file!!.absolutePath));
+                        spinner!!.visibility = View.INVISIBLE
+                        requireView().findViewById<BottomNavigationView>(R.id.bottomNavView1).visibility = View.VISIBLE
+                        currentImagePath = file.absolutePath
+                    }
+                } catch (e : Exception) {
+                    requireActivity().runOnUiThread {
+                        // TODO: add error message
+                        imageView!!.visibility = View.INVISIBLE
+                        spinner!!.visibility = View.INVISIBLE
+                    }
+                }
             }
-        }, {
-            requireActivity().runOnUiThread {
-                imageView!!.visibility = View.INVISIBLE
-                spinner!!.visibility = View.INVISIBLE
-            }
-        })
+        }
     }
 
     private fun download() {
-        val dwPath = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        val src = File(currentImagePath!!).absoluteFile.toPath()
-        val dst = File(dwPath, src.fileName.name).absoluteFile.toPath()
-        Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING)
+        try {
+            // TODO: add "copying started" message, because sometimes copy process is very slow
+            val dwPath =
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val src = File(currentImagePath!!).absoluteFile.toPath()
+            val dst = File(dwPath, src.fileName.name).absoluteFile.toPath()
+            Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING)
 
-        val mediaScanIntent = Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE)
-        val contentUri = Uri.fromFile(dst.toFile())
-        mediaScanIntent.data = contentUri
-        requireActivity().sendBroadcast(mediaScanIntent)
+            val mediaScanIntent = Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE)
+            val contentUri = Uri.fromFile(dst.toFile())
+            mediaScanIntent.data = contentUri
+            requireActivity().sendBroadcast(mediaScanIntent)
+        } catch (e : Exception) {
+            e.printStackTrace()
+            // TODO: add error message
+        }
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
@@ -113,17 +151,19 @@ class ImageViewFragment : Fragment() {
             }
         }
 
-        reload(-1)
+        reload(filter!!, extra!!, imageIndex?.toInt() ?: -1)
         return view
     }
 
     companion object {
         @JvmStatic
-        fun newInstance(account : AccountEntity?, imageIndex : Long) =
+        fun newInstance(account : AccountEntity?, imageIndex : Long, filter : PhotoprismPredefinedFilters, extra : ConcurrentHashMap<String, Any>) =
             ImageViewFragment().apply {
                 arguments = Bundle().apply {
-                    putLong(Const.ARG_IMAGE_INDEX, imageIndex)
-                    putLong(Const.ARG_ACCOUNT_ID, account?.uid ?: -1)
+                    putLong(ARG_IMAGE_INDEX, imageIndex)
+                    putLong(ARG_ACCOUNT_ID, account?.uid ?: -1)
+                    putSerializable(ARG_FILTER, filter)
+                    putSerializable(ARG_EXTRA, extra)
                 }
             }
     }

@@ -1,7 +1,6 @@
 package com.mewhpm.mewphotoprism.adapters
 
 import android.content.Context
-import android.os.Handler
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -9,25 +8,28 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.mewhpm.mewphotoprism.MainActivity
 import com.mewhpm.mewphotoprism.R
-import com.mewhpm.mewphotoprism.entity.AccountEntity
-import com.mewhpm.mewphotoprism.services.Storage
-import com.mewhpm.mewphotoprism.services.proto.DirectoriesStorage
-import com.mewhpm.mewphotoprism.services.proto.SecuredStorage
-import com.mewhpm.mewphotoprism.utils.download
-import com.mewhpm.mewphotoprism.utils.getTemporaryFileForPreview
+import com.mewhpm.mewphotoprism.services.helpers.PhotoprismAlbumType
+import com.mewhpm.mewphotoprism.services.helpers.PhotoprismHelper
+import com.mewhpm.mewphotoprism.utils.runIO
 import com.mewhpm.mewphotoprism.view_holders.AlbumItemViewHolder
-import okhttp3.OkHttpClient
+import kotlinx.coroutines.runBlocking
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 class DirectoryListAdapter(
-    val type : Int,
-    val accountEntity: AccountEntity,
-    val context: Context,
-    val onClick : (index : Int) -> Unit
+    private val activity        : MainActivity,
+    private val context         : Context,
+    private var galleriesFilter : PhotoprismAlbumType,
+    private val onClick         : (index : Int) -> Unit
 ) : RecyclerView.Adapter<AlbumItemViewHolder>() {
-    var mainHandler: Handler = Handler(context.mainLooper)
-    val selectedItems = HashSet<Int>()
-    val http = OkHttpClient()
+    private val selectedItems = HashSet<Int>()
+    private val forceRefresh  = AtomicBoolean(true)
+
+    private fun getPhotoprismService() : PhotoprismHelper {
+        return activity.fgService!!.photoprismHelper!!
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AlbumItemViewHolder {
         val view: View = LayoutInflater
@@ -48,34 +50,29 @@ class DirectoryListAdapter(
 
     override fun onBindViewHolder(holder: AlbumItemViewHolder, position: Int) {
         holder.image.setImageResource(android.R.color.transparent)
-        if (Storage.getInstance(accountEntity, context, SecuredStorage::class.java).isLogin()) {
-            return
-        }
-        Storage.getInstance(accountEntity, context, DirectoriesStorage::class.java).getDir(position, type, {
-//            Log.d("IMG-DIR", "Image $position (${it.name}) loaded")
-            val file = http.getTemporaryFileForPreview(it.cover.imageID, context)
-            http.download(it.cover.imageFullPath, file.path, { path ->
-                mainHandler.post {
-                    try {
-                        Glide
-                            .with(context.applicationContext)
-                            .load(path)
-                            .diskCacheStrategy(DiskCacheStrategy.NONE)
-                            .centerCrop()
-                            .into(holder.image)
-                    } catch (t : Throwable) {
-                        Log.e("GLIDE", "Error ${t.message}")
-                    }
+        val svc = getPhotoprismService()
+        svc.createTaskForGenerateDirPreview(context, galleriesFilter, position, { image ->
+            activity.runOnUiThread {
+                try {
+                    Glide
+                        .with(context.applicationContext)
+                        .load(image.img)
+                        .diskCacheStrategy(DiskCacheStrategy.NONE)
+                        .centerCrop()
+                        .into(holder.image)
+                    holder.name.text = image.displayName
+                } catch (t : Throwable) {
+                    holder.image.setImageResource(R.drawable.icon_broken_image)
+                    Log.e("GLIDE", "Error ${t.message}")
                 }
-            }, { err ->
-                Log.e("PREVIEW", "Error: ${err.message}")
-            })
+            }
         }, {
-            Log.w("onBindViewHolder","Error while loading cover image $position")
-            mainHandler.post {
+            activity.runOnUiThread {
+                // TODO: add error message
                 holder.image.setImageResource(R.drawable.icon_broken_image)
             }
         })
+
         holder.image.setOnClickListener {
             if (selectedItems.isNotEmpty()) {
                 setSelect(holder, position)
@@ -90,8 +87,20 @@ class DirectoryListAdapter(
     }
 
     override fun getItemCount(): Int {
-        val count = Storage.getInstance(accountEntity, context, DirectoriesStorage::class.java).getDirsCount(type)
-        Log.d("DIRCOUNT", "Count = $count")
-        return count
+        val value = AtomicInteger(0)
+        runBlocking {
+            val job = activity.runIO({
+                val count = getPhotoprismService().getAllGalleries(galleriesFilter, forceRefresh.getAndSet(false)).size
+                //Log.d("DIRCOUNT", "Count = $count")
+                value.set(count)
+            }, {
+                it.printStackTrace()
+                //activity.runOnUiThread {
+                    // TODO: add error message
+                //}
+            })
+            job.join()
+        }
+        return value.get()
     }
 }
