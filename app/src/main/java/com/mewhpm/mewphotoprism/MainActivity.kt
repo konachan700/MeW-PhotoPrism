@@ -10,8 +10,8 @@ import androidx.appcompat.app.AppCompatActivity
 import com.mewhpm.mewphotoprism.fragments.AccountsFragment
 import com.mewhpm.mewphotoprism.fragments.ImageListFragment
 import com.mewhpm.mewphotoprism.services.UniversalBackgroundService
-import com.mewhpm.mewphotoprism.services.X_ACTION
-import com.mewhpm.mewphotoprism.services.X_ACTION_START
+import com.mewhpm.mewphotoprism.utils.X_ACTION
+import com.mewhpm.mewphotoprism.utils.X_ACTION_START
 import com.mewhpm.mewphotoprism.utils.isServiceRunning
 import com.mewhpm.mewphotoprism.utils.runIO
 

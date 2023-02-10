@@ -1,19 +1,15 @@
 package com.mewhpm.mewphotoprism.adapters
 
 import android.content.Context
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.mewhpm.mewphotoprism.MainActivity
 import com.mewhpm.mewphotoprism.R
 import com.mewhpm.mewphotoprism.entity.AccountEntity
 import com.mewhpm.mewphotoprism.services.helpers.PhotoprismHelper
 import com.mewhpm.mewphotoprism.services.helpers.PhotoprismPredefinedFilters
-import com.mewhpm.mewphotoprism.utils.runIO
 import com.mewhpm.mewphotoprism.view_holders.GalleryItemViewHolder
 import java.util.concurrent.ConcurrentHashMap
 
@@ -49,33 +45,8 @@ class GalleryListAdapter(
     }
 
     override fun onBindViewHolder(holder: GalleryItemViewHolder, position: Int) {
-        holder.image.setImageResource(android.R.color.transparent)
-        val svc = getPhotoprismService()
-        activity.runIO({
-            svc.createTaskForGenerateImagePreview(context, filter, extra, position, {
-                activity.runOnUiThread {
-                    try {
-                        Glide
-                            .with(context.applicationContext)
-                            .load(it.img)
-                            .diskCacheStrategy(DiskCacheStrategy.NONE)
-                            .centerCrop()
-                            .into(holder.image)
-                    } catch (t : Throwable) {
-                        holder.image.setImageResource(R.drawable.icon_broken_image)
-                        Log.e("GLIDE", "Error ${t.message}")
-                    }
-                }
-            }, {
-                activity.runOnUiThread {
-                    // TODO: add error message
-                    holder.image.setImageResource(R.drawable.icon_broken_image)
-                }
-            })
-        }, {
-            // TODO: add error message
-            holder.image.setImageResource(R.drawable.icon_broken_image)
-        })
+//        Log.d("COUNT", "onBindViewHolder position = $position")
+        holder.setImageAsync(activity, context, filter!!, extra, position)
         holder.image.setOnClickListener {
             if (selectedItems.isNotEmpty()) {
                 setSelect(holder, position)
@@ -90,6 +61,8 @@ class GalleryListAdapter(
     }
 
     override fun getItemCount(): Int {
-        return getPhotoprismService().getImagesCount(filter)
+        val count = getPhotoprismService().getImagesCount(filter)
+        //Log.d("COUNT", "Count = $count; filter = ${filter.name}")
+        return count
     }
 }

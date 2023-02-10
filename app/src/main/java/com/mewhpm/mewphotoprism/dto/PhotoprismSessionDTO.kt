@@ -4,8 +4,9 @@ package com.mewhpm.mewphotoprism.dto
 import com.google.gson.annotations.SerializedName
 
 data class PhotoprismSessionDTO(
+    @Volatile
     @SerializedName("config")
-    val config: PhotoprismConfigDTO,
+    var config: PhotoprismConfigDTO,
     @SerializedName("data")
     val `data`: Data,
     @SerializedName("id")

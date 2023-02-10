@@ -14,11 +14,12 @@ import android.os.IBinder
 import android.provider.MediaStore
 import android.util.Log
 import com.mewhpm.mewphotoprism.R
+import com.mewhpm.mewphotoprism.clients.MtpClient
+import com.mewhpm.mewphotoprism.services.helpers.MTPHelper
 import com.mewhpm.mewphotoprism.services.helpers.PhotoprismHelper
-
-public const val X_ACTION = "x-action"
-public const val X_ACTION_START = "start"
-public const val X_ACTION_PHOTOPRISM_LOGIN = "pp_login"
+import com.mewhpm.mewphotoprism.utils.X_ACTION
+import com.mewhpm.mewphotoprism.utils.X_ACTION_PHOTOPRISM_LOGIN
+import com.mewhpm.mewphotoprism.utils.X_ACTION_START
 
 class UniversalBackgroundService : Service() {
     private val contentObserver = object : ContentObserver(null) {
@@ -42,7 +43,31 @@ class UniversalBackgroundService : Service() {
     private lateinit var notification: Notification.Builder
     private val binder : UBSBinder = UBSBinder()
 
+    @Volatile
     var photoprismHelper : PhotoprismHelper? = null
+    @Volatile
+    var mtpClient: MtpClient? = null
+    @Volatile
+    var mtpHelper : MTPHelper? = null
+
+    fun mtpInit(context: Context) {
+        mtpClose()
+        mtpClient = MtpClient(context)
+        mtpHelper = MTPHelper(context, mtpClient!!)
+        mtpClient!!.addListener(mtpHelper)
+    }
+
+    fun mtpClose() {
+        try {
+            if (mtpClient != null) {
+                mtpClient!!.close()
+            }
+            mtpHelper = null
+            mtpClient = null
+        } catch (e : Exception) {
+            Log.e("MTP-ERROR", "mtpInit::mtpClient!!.close(); error = ${e::class.java.canonicalName} / ${e.message}")
+        }
+    }
 
     fun photoprismCreateOnce(
         baseUrl  : String,

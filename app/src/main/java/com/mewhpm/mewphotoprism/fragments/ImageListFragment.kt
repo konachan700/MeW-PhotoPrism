@@ -20,6 +20,8 @@ import com.mewhpm.mewphotoprism.entity.AccountEntity
 import com.mewhpm.mewphotoprism.services.helpers.PhotoprismAlbumType
 import com.mewhpm.mewphotoprism.services.helpers.PhotoprismHelper
 import com.mewhpm.mewphotoprism.services.helpers.PhotoprismPredefinedFilters
+import com.mewhpm.mewphotoprism.utils.runIO
+import kotlinx.coroutines.runBlocking
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -50,23 +52,26 @@ class ImageListFragment : Fragment() {
         return (requireActivity() as MainActivity).fgService!!.photoprismHelper!!
     }
 
+    private fun reloadCache() {
+        runBlocking {
+            val job = requireActivity().runIO({
+                getPhotoprismService().prefillImagesCache(filter, extra)
+            }, {})
+            job.join()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         arguments?.let {
             accountID = it.getLong(ARG_ACCOUNT_ID)
-            //filter = it.getSerializable(ARG_FILTER) as PhotoprismPredefinedFilters
-            //extra = it.getSerializable(ARG_EXTRA) as HashMap<String, Any>
         }
         if (accountID == -1L) {
             throw IllegalArgumentException("Bad parameter 'accID'")
         }
         db = AppDatabase.getDB(requireContext())
         account = db.AccountsDAO().getByUID(accountID)
-
-        //recyclerView?.adapter?.notifyDataSetChanged()
-        //recyclerView?.invalidate()
-        //requireView().findViewById<SpinKitView>(R.id.waitSpinner2).visibility = View.INVISIBLE
     }
 
     override fun onResume() {
@@ -104,33 +109,33 @@ class ImageListFragment : Fragment() {
             }
             ListType.LIST_TYPE_FOLDERS -> {
                 if (!galleriesAdapters.containsKey(galleriesFilter)) {
-                    //val panel = requireView().findViewById<BottomNavigationView>(R.id.bottomNavView2)
                     galleriesAdapters[galleriesFilter] = DirectoryListAdapter(
                         requireActivity() as MainActivity, requireContext(), galleriesFilter
                     ) {
                         extra.clear()
+                        recyclerView!!.adapter = null
+                        recyclerView!!.layoutManager = null
+
                         val gallery = getPhotoprismService().getGallery(galleriesFilter, it)
                         when(galleriesFilter) {
                             PhotoprismAlbumType.SYS_BY_DIR -> {
                                 extra["album"] = gallery!!.uID
                                 extra["dir"] = gallery.path
                                 filter = PhotoprismPredefinedFilters.IMAGES_BY_DIR
-                                getPhotoprismService().wipeImgCache(filter)
                             }
                             PhotoprismAlbumType.SYS_BY_DATE -> {
                                 extra["year"] = gallery!!.year
                                 extra["month"] = gallery.month
                                 extra["album"] = gallery.uID
                                 filter = PhotoprismPredefinedFilters.IMAGES_BY_MONTH
-                                getPhotoprismService().wipeImgCache(filter)
                             }
                             PhotoprismAlbumType.USER_CREATED -> {
                                 extra["album"] = gallery!!.uID
-                                extra["dir"] = ""
                                 filter = PhotoprismPredefinedFilters.IMAGES_CUSTOM
-                                getPhotoprismService().wipeImgCache(filter)
                             }
                         }
+                        getPhotoprismService().wipeImgCache(filter)
+                        reloadCache()
                         createListView(ListType.LIST_TYPE_IMAGES)
                     }
                 }
@@ -221,6 +226,8 @@ class ImageListFragment : Fragment() {
     }
 
     private fun onMenuClick(it : MenuItem) {
+        recyclerView!!.adapter = null
+        recyclerView!!.layoutManager = null
         when (it.itemId) {
             R.id.mainPhotosButton -> {
                 filter = PhotoprismPredefinedFilters.IMAGES_ALL

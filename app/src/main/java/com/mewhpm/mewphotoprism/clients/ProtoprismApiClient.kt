@@ -71,6 +71,11 @@ class ProtoprismApiClient(
         login()
     }
 
+    fun forceReloadSession() {
+        val newSession = service.getConfig(session.get().id).execute().body()!!
+        session.get().config = newSession
+    }
+
     fun checkSession() {
         //val time = Date().time
         if (session.get() == null) {
@@ -150,6 +155,34 @@ class ProtoprismApiClient(
         return call.execute().body()!!
     }
 
+    fun getPhotosByAlbum(count : Int, offset : Int, album : String) : List<PhotoprismImageDTO> {
+        checkSession()
+        val call: Call<List<PhotoprismImageDTO>> = service.getPhotos(
+            session = session.get().id, count = count, offset = offset,
+            merged = true, country = "", camera = 0, lens = 0, label = "", year = 0, month = 0, color = "",
+            order = "newest", query = "", quality = 3, favorite = false, album = album, filter = "", original = "")
+        return call.execute().body()!!
+    }
+
+    fun likePhoto(uid : String) : PhotoprismImageDTO {
+        checkSession()
+        val data = service.like(session.get().id, uid).execute().body()!!.photo
+        forceReloadSession()
+        return data
+    }
+
+    fun unlikePhoto(uid : String) : PhotoprismImageDTO {
+        checkSession()
+        val data = service.unlike(session.get().id, uid).execute().body()!!.photo
+        forceReloadSession()
+        return data
+    }
+
+    fun getSinglePhoto(uid : String) : PhotoprismImageDTO {
+        checkSession()
+        return service.getSinglePhoto(session.get().id, uid).execute().body()!!
+    }
+
     fun isImageExist(name : String) : Boolean {
         checkSession()
         val call: Call<List<PhotoprismImageDTO>> = service.getPhotos(
@@ -182,6 +215,12 @@ class ProtoprismApiClient(
             e.printStackTrace()
             false
         }
+    }
+
+    fun downloadLargePreview(hash : String) : ByteArray? {
+        checkSession()
+        val call : Call<ResponseBody> = service.downloadBigPreview(hash, session.get().config.previewToken)
+        return call.execute().body()?.bytes()
     }
 
     fun downloadPreview(hash : String) : ByteArray? {

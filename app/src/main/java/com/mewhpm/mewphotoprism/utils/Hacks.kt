@@ -4,6 +4,7 @@ import android.app.ActivityManager
 import android.content.Context
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
+import androidx.fragment.app.FragmentActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -19,6 +20,13 @@ import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
+
+const val PP_SWIPE_LEFT = 1
+const val PP_SWIPE_RIGHT = -1
+
+const val X_ACTION = "x-action"
+const val X_ACTION_START = "start"
+const val X_ACTION_PHOTOPRISM_LOGIN = "pp_login"
 
 private val okHttpClient = OkHttpClient.Builder()
     // TODO: add separate flag in setting for ignore self-signed certs
@@ -130,6 +138,18 @@ fun InputStream.copyToWithProgress(
 }
 
 fun AppCompatActivity.runIO(runnable : () -> Unit, error : (e: Exception) -> Unit = { it.printStackTrace() }) : Job {
+    return CoroutineScope(Dispatchers.IO).launch {
+        runCatching {
+            try {
+                runnable.invoke()
+            } catch (e: Exception) {
+                error.invoke(e)
+            }
+        }
+    }
+}
+
+fun FragmentActivity.runIO(runnable : () -> Unit, error : (e: Exception) -> Unit = { it.printStackTrace() }) : Job {
     return CoroutineScope(Dispatchers.IO).launch {
         runCatching {
             try {

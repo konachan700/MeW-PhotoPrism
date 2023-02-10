@@ -85,6 +85,29 @@ interface ProtoprismApi {
         @Body commitInfo                      : PhotoprismImportCommitDTO
     ) : Call<PhotoprismResultDTO>
 
+    @GET("api/v1/photos/{uid}")
+    fun getSinglePhoto(
+        @Header("X-Session-ID") session  : String,
+        @Path("uid")            uid : String,
+    ) : Call<PhotoprismImageDTO>
+
+    @POST("api/v1/photos/{uid}/like")
+    fun like(
+        @Header("X-Session-ID") session  : String,
+        @Path("uid")            uid      : String
+    ) : Call<PhotoprismImageLikeWrapperDTO>
+
+    @DELETE("api/v1/photos/{uid}/like")
+    fun unlike(
+        @Header("X-Session-ID") session  : String,
+        @Path("uid")            uid      : String
+    ) : Call<PhotoprismImageLikeWrapperDTO>
+
+
+    //api/v1/config
+
+    ///api/v1/photos/prpm7er1loikvvpk/like
+
     // CREATE ALBUM
     // req  = POST api/v1/albums
     // body = {"Title":"February 2023","Favorite":false}

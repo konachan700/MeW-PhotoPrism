@@ -46,7 +46,7 @@ class PhotoprismHelper(
 
     init {
         imagesPreviewWorker.startWorker({ item ->
-            val image = loadImgPreview(item.context, item.filter, item.extra, item.id)
+            val image = loadImgPreview(item.filter, item.extra, item.id)
             if (image.imageID.isNotEmpty() && image.img.isNotEmpty()) {
                 item.onSuccess.invoke(image)
             } else {
@@ -71,6 +71,13 @@ class PhotoprismHelper(
         imagesCacheList[filter]?.clear()
         imagesCacheMap[filter]?.clear()
         bitmapCache[filter]?.clear()
+        filteredCounts[filter] = 0
+    }
+
+    fun prefillImagesCache(
+                     filter: PhotoprismPredefinedFilters,
+                     extra: Map<String, Any>) {
+        loadImgPreview(filter, extra, 0)
     }
 
     @Synchronized
@@ -92,6 +99,14 @@ class PhotoprismHelper(
         return imagesCacheMap[filter]!![id]
     }
 
+    fun replaceItemInImgCache(filter : PhotoprismPredefinedFilters, index : Int, newElement : PhotoprismImageDTO) : PhotoprismImageDTO? {
+        if (imagesCacheList[filter] == null) return null
+        val id = imagesCacheList[filter]!![index] ?: return null
+        val oldItem = imagesCacheMap[filter]!![id]
+        imagesCacheMap[filter]!![id] = newElement
+        return oldItem
+    }
+
     @Synchronized
     private fun pushToAlbumCache(type : PhotoprismAlbumType, element : PhotoprismAlbumDTO, index : Int) {
         if (albumsCache[type] == null) albumsCache[type] = ConcurrentHashMap()
@@ -103,16 +118,47 @@ class PhotoprismHelper(
         return albumsCache[type]!![index]
     }
 
+    fun downloadLargePreview(hash : String) : ByteArray? {
+        return client.downloadLargePreview(hash)
+    }
+
     fun getImage(context : Context, filter : PhotoprismPredefinedFilters, extra : Map<String, Any>, index : Int) : PhotoprismImageDTO {
         val imgCache = getFromImgCache(filter, index)
         if (imgCache != null) return imgCache
-        preloadIndexes(context, index, filter, extra)
+        preloadIndexes(index, filter, extra)
         val img = getFromImgCache(filter, index)
         if (img != null) return img else throw PhotoprismImageNotFoundException()
     }
 
+    fun getImageOnlyFromCache(context : Context, filter : PhotoprismPredefinedFilters, extra : Map<String, Any>, index : Int) : PhotoprismImageDTO {
+        return getFromImgCache(filter, index)!!
+    }
+
     fun checkSession() {
         client.checkSession()
+    }
+
+    fun forceReloadSession() {
+        client.forceReloadSession()
+    }
+
+    fun likeImage(
+        filter : PhotoprismPredefinedFilters,
+        index : Int
+    ) : PhotoprismImageDTO? {
+        return try {
+            val orig = getFromImgCache(filter, index)!!
+            val img = if (orig.favorite) client.unlikePhoto(orig.uID) else client.likePhoto(orig.uID)
+            orig.favorite = img.favorite
+            wipeImgCache(PhotoprismPredefinedFilters.IMAGES_FAVORITES)
+//            if (filter == PhotoprismPredefinedFilters.IMAGES_FAVORITES) {
+//                prefillImagesCache(filter, HashMap())
+//            }
+            img
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
 
     fun getTotalImagesCount(): Int = client.getImagesCount()
@@ -150,14 +196,13 @@ class PhotoprismHelper(
     }
 
     private fun loadImgPreview(
-        context: Context,
         filter: PhotoprismPredefinedFilters,
         extra: Map<String, Any>,
         index: Int
     ): SimpleImage {
         var item = getFromImgCache(filter, index)
         if (item == null) {
-            item = preloadIndexes(context, index, filter, extra)
+            item = preloadIndexes(index, filter, extra)
         }
         if (item == null) {
             return SimpleImage("", "", ByteArray(0), Date(0))
@@ -194,8 +239,9 @@ class PhotoprismHelper(
         return SimpleImage(item.thumb, item.title, data!!, Date())
     }
 
-    private fun preloadIndexes(context : Context, index: Int, filters: PhotoprismPredefinedFilters, extra : Map<String, Any>) : PhotoprismImageDTO? {
+    private fun preloadIndexes(index: Int, filters: PhotoprismPredefinedFilters, extra : Map<String, Any>) : PhotoprismImageDTO? {
         Log.i("PRELOAD", "Image $index was not found in the cache; updating cache...")
+
         val startIndex = if (index <= (IMAGES_CACHE_PAGE_SIZE / 2)) 0 else (index - (IMAGES_CACHE_PAGE_SIZE / 2))
         val list = when (filters) {
             PhotoprismPredefinedFilters.IMAGES_ALL ->
@@ -207,7 +253,7 @@ class PhotoprismHelper(
             PhotoprismPredefinedFilters.IMAGES_BY_MONTH ->
                 client.getPhotosByDate(MAX_COUNT_FOR_IMAGES, 0, extra["year"] as Int, extra["month"] as Int, extra["album"] as String)
             PhotoprismPredefinedFilters.IMAGES_CUSTOM ->
-                client.getPhotosByDir(MAX_COUNT_FOR_IMAGES, 0, extra["album"] as String, "")
+                client.getPhotosByAlbum(MAX_COUNT_FOR_IMAGES, 0, extra["album"] as String)
         }
         filteredCounts[filters] = when(filters) {
             PhotoprismPredefinedFilters.IMAGES_ALL -> client.getSession().config.count.photos
@@ -280,9 +326,31 @@ class PhotoprismHelper(
         transactionID = 0
     }
 
-    fun downloadOriginalAsFile(context : Context, name : String, progress : ((fileSize: Long, downloaded : Long) -> Unit)?) : File? {
+    fun getSinglePhoto(uid : String) : PhotoprismImageDTO {
+        return client.getSinglePhoto(uid)
+    }
+
+    fun downloadOriginalAsFile(
+        context : Context,
+        filter: PhotoprismPredefinedFilters,
+        index : Int,
+        progress : ((fileSize: Long, downloaded : Long) -> Unit)?
+    ) : File? {
+        val img = getImageOnlyFromCache(context, filter, HashMap(), index)
+        val realImg = getSinglePhoto(img.uID)
+        val primaryFile = realImg.files.first { it.originalName.isNotEmpty() }
+        return downloadOriginalAsFile(context, primaryFile.hash, primaryFile.originalName, progress)
+    }
+
+    fun downloadOriginalAsFile(
+        context : Context,
+        name : String,
+        fileName : String,
+        progress : ((fileSize: Long, downloaded : Long) -> Unit)?
+    ) : File? {
         val time = Date().time
-        val tempFile = getTemporaryFile(context, name)
+        val tempFile = getTemporaryFile(context, fileName)
+        if (tempFile.exists()) return tempFile
         val result = client.downloadOriginalAsFile(name, tempFile, progress)
         Log.d("TIME", "downloadOriginalAsFile [${Date().time - time} ms]")
         return if (result) {

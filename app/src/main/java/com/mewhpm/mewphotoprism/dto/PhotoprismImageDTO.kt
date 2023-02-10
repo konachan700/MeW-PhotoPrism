@@ -33,7 +33,7 @@ data class PhotoprismImageDTO(
     @SerializedName("FNumber")
     val fNumber: Double,
     @SerializedName("Favorite")
-    val favorite: Boolean,
+    var favorite: Boolean,
     @SerializedName("FileName")
     val fileName: String,
     @SerializedName("FileRoot")

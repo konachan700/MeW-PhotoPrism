@@ -8,4 +8,8 @@
         android:id="@+id/shareButton"
         android:title="@string/share"
         android:icon="@drawable/icon_share"/>
+    <item
+        android:id="@+id/likeButton"
+        android:title="@string/like"
+        android:icon="@drawable/icon_like_false"/>
 </menu>
