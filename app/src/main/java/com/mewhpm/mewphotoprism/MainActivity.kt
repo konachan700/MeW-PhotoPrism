@@ -39,6 +39,7 @@ class MainActivity : AppCompatActivity(), ServiceConnection {
                 val db = AppDatabase.getDB(this.applicationContext)
                 val account = db.AccountsDAO().getByUID(accountID)
                 runIO ({
+                    fgService!!.mtpInit()
                     fgService!!.photoprismCreateOnce(account.url!!, account.user!!, account.pass!!)
                     runOnUiThread {
                         val transaction = supportFragmentManager.beginTransaction()

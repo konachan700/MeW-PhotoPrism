@@ -5,7 +5,6 @@ import android.mtp.MtpConstants
 import android.mtp.MtpDevice
 import android.mtp.MtpObjectInfo
 import android.util.Log
-import com.mewhpm.mewphotoprism.clients.MtpClient
 import com.mewhpm.mewphotoprism.entity.ImageEntity
 import com.mewhpm.mewphotoprism.exceptions.PhotoprismCannotCreateFileOrDirectoryException
 import kotlinx.coroutines.CoroutineScope
@@ -15,23 +14,43 @@ import java.io.File
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
 
 class MTPHelper(
     val context: Context,
-    val mtpClient: MtpClient
-) : MtpClient.Listener {
-    private val isDeviceConnected = AtomicBoolean(false)
-    private val mtpDevice = AtomicReference<MtpDevice>(null)
+    val mtpUtils: MTPUtils
+) {
     private val listOfImagesOnCamera = CopyOnWriteArrayList<ImageEntity>()
     private val listOfMtpObjectInfo  = ConcurrentHashMap<String, MtpObjectInfo>()
 
-
+    var actionsListener : ((dev : MtpDevice?) -> Unit)? = null
 
     fun getCachedPreview(index : Int) : ByteArray {
         val name = listOfImagesOnCamera[index].name!!
         return getCachedPreview(name)
+    }
+
+    fun downloadOriginal(index : Int) : File {
+        val name = listOfImagesOnCamera[index].name!!
+        val file = getTemporaryFile(context, "orig_$name")
+        if (file.exists() && file.canRead()) {
+            return file
+        }
+        val handle = listOfMtpObjectInfo[name]!!.objectHandle
+        val data = mtpUtils.mtpDevice!!.getObject(handle, listOfMtpObjectInfo[name]!!.compressedSize)!!
+        file.writeBytes(data)
+        return file
+    }
+
+    fun getOriginal(index : Int) : ByteArray {
+        val name = listOfImagesOnCamera[index].name!!
+        val file = getTemporaryFile(context, "orig_$name")
+        if (file.exists() && file.canRead()) {
+            return file.readBytes()
+        }
+        val handle = listOfMtpObjectInfo[name]!!.objectHandle
+        val data = mtpUtils.mtpDevice!!.getObject(handle, listOfMtpObjectInfo[name]!!.compressedSize)!!
+        file.writeBytes(data)
+        return data
     }
 
     fun getCachedPreview(name : String) : ByteArray {
@@ -40,7 +59,7 @@ class MTPHelper(
             return file.readBytes()
         }
         val handle = listOfMtpObjectInfo[name]!!.objectHandle
-        val data = mtpDevice.get().getThumbnail(handle)!!
+        val data = mtpUtils.mtpDevice!!.getThumbnail(handle)!!
         file.writeBytes(data)
         return data
     }
@@ -48,19 +67,17 @@ class MTPHelper(
     fun getCount() : Int = listOfImagesOnCamera.size
 
     fun isCameraConnected() : Boolean {
-        return mtpDevice.get() == null && isDeviceConnected.get()
+        return mtpUtils.mtpDevice != null
     }
 
-    override fun deviceAdded(device: MtpDevice?) {
+    fun deviceAdded(device: MtpDevice?) {
         CoroutineScope(Dispatchers.IO).launch {
            runCatching {
                try {
-                   val camera = mtpClient.deviceList.first()
-                   val firstCamera = camera.storageIds?.first() ?: throw RuntimeException("No camera data")
-                   mtpDevice.set(camera)
-                   camera
-                       .getObjectHandles(firstCamera, MtpConstants.FORMAT_EXIF_JPEG, 0)
-                       ?.map { e -> camera.getObjectInfo(e) }
+                   val sid = device!!.storageIds!!.first()
+                   device
+                       .getObjectHandles(sid, MtpConstants.FORMAT_EXIF_JPEG, 0)
+                       ?.map { e -> device.getObjectInfo(e) }
                        ?.forEach { mtpObjectInfo ->
                            val cal = GregorianCalendar.getInstance(TimeZone.getDefault())
                            cal.time = Date(mtpObjectInfo!!.dateCreated)
@@ -69,9 +86,9 @@ class MTPHelper(
                            listOfImagesOnCamera.add(ie)
                            listOfMtpObjectInfo[mtpObjectInfo.name] = mtpObjectInfo
                        }
-                   isDeviceConnected.set(true)
+                   actionsListener?.invoke(device)
                } catch (e : Exception) {
-                   deviceRemoved(null)
+                   deviceRemoved()
                    e.printStackTrace()
                    // TODO: add error message and handler
                }
@@ -79,11 +96,10 @@ class MTPHelper(
         }
     }
 
-    override fun deviceRemoved(device: MtpDevice?) {
-        isDeviceConnected.set(false)
+    fun deviceRemoved() {
         listOfImagesOnCamera.clear()
         listOfMtpObjectInfo.clear()
-        mtpDevice.set(null)
+        actionsListener?.invoke(null)
     }
 
     private fun getTemporaryFile(context : Context, name: String): File {

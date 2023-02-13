@@ -181,7 +181,7 @@ class ImageListFragment : Fragment() {
             when (item.itemId) {
                 R.id.importFromUsbMenu -> {
                     val transaction = requireActivity().supportFragmentManager.beginTransaction()
-                    transaction.replace(R.id.fragmentHost, UsbCameraSyncFragment.newInstance(accountID), "MainFragment")
+                    transaction.replace(R.id.fragmentHost, MTPImageListAndSyncFragment.newInstance(), "MainFragment")
                     transaction.addToBackStack(null)
                     transaction.commit()
                 }

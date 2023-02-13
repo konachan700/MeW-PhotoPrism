@@ -56,6 +56,7 @@ class AccountsFragment : Fragment() {
                     CoroutineScope(Dispatchers.IO).launch {
                         runCatching {
                             try {
+                                getProtoprismService().mtpInit()
                                 getProtoprismService().photoprismCreateOnce(item.url!!, item.user!!, item.pass!!)
                                 showImagesFormAfterLogin(item)
                             } catch (e : Exception) {

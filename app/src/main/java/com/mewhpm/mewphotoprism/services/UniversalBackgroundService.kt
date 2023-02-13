@@ -14,8 +14,8 @@ import android.os.IBinder
 import android.provider.MediaStore
 import android.util.Log
 import com.mewhpm.mewphotoprism.R
-import com.mewhpm.mewphotoprism.clients.MtpClient
 import com.mewhpm.mewphotoprism.services.helpers.MTPHelper
+import com.mewhpm.mewphotoprism.services.helpers.MTPUtils
 import com.mewhpm.mewphotoprism.services.helpers.PhotoprismHelper
 import com.mewhpm.mewphotoprism.utils.X_ACTION
 import com.mewhpm.mewphotoprism.utils.X_ACTION_PHOTOPRISM_LOGIN
@@ -25,6 +25,7 @@ class UniversalBackgroundService : Service() {
     private val contentObserver = object : ContentObserver(null) {
         override fun onChange(selfChange: Boolean, uri: Uri?, flags: Int) {
             super.onChange(selfChange, uri, flags)
+            if (selfChange) return
             when (flags) {
                 ContentResolver.NOTIFY_INSERT -> {
 
@@ -43,29 +44,21 @@ class UniversalBackgroundService : Service() {
     private lateinit var notification: Notification.Builder
     private val binder : UBSBinder = UBSBinder()
 
+    private val mtpUtils = MTPUtils()
+
     @Volatile
     var photoprismHelper : PhotoprismHelper? = null
     @Volatile
-    var mtpClient: MtpClient? = null
-    @Volatile
     var mtpHelper : MTPHelper? = null
 
-    fun mtpInit(context: Context) {
-        mtpClose()
-        mtpClient = MtpClient(context)
-        mtpHelper = MTPHelper(context, mtpClient!!)
-        mtpClient!!.addListener(mtpHelper)
-    }
-
-    fun mtpClose() {
-        try {
-            if (mtpClient != null) {
-                mtpClient!!.close()
-            }
-            mtpHelper = null
-            mtpClient = null
-        } catch (e : Exception) {
-            Log.e("MTP-ERROR", "mtpInit::mtpClient!!.close(); error = ${e::class.java.canonicalName} / ${e.message}")
+    fun mtpInit() {
+        mtpUtils.createService(this.applicationContext)
+        mtpHelper = MTPHelper(this.applicationContext, mtpUtils)
+        mtpUtils.actionsListener = { dev ->
+            if (dev == null)
+                mtpHelper!!.deviceRemoved()
+            else
+                mtpHelper!!.deviceAdded(dev)
         }
     }
 
@@ -151,5 +144,9 @@ class UniversalBackgroundService : Service() {
 
     inner class UBSBinder : Binder() {
         fun getService() : UniversalBackgroundService = this@UniversalBackgroundService
+    }
+
+    companion object {
+        const val ACTION_USB_PERMISSION = "com.android.example.USB_PERMISSION"
     }
 }

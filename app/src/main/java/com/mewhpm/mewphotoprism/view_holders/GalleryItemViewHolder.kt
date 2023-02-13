@@ -21,6 +21,43 @@ class GalleryItemViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) 
     private val taskCode = AtomicLong()
     private val secureRandom = SecureRandom()
 
+    fun setMTPImageAsync(
+        activity    : MainActivity,
+        context     : Context,
+        id          : Int
+    ) {
+        taskCode.set(secureRandom.nextLong())
+        val currentTaskCode = taskCode.get()
+        image.setImageResource(android.R.color.transparent)
+        image.visibility = View.INVISIBLE
+        activity.runIO({
+            val svc = activity.fgService!!.mtpHelper!!
+            val data = svc.getCachedPreview(id)
+            activity.runOnUiThread {
+                try {
+                    Glide
+                        .with(context.applicationContext)
+                        .load(data)
+                        .diskCacheStrategy(DiskCacheStrategy.NONE)
+                        .centerCrop()
+                        .into(image)
+                    image.visibility = if (currentTaskCode == taskCode.get()) View.VISIBLE else View.INVISIBLE
+                } catch (t : Throwable) {
+                    // TODO: add error message
+                    image.setImageResource(R.drawable.icon_broken_image)
+                    image.visibility = View.VISIBLE
+                    Log.e("GLIDE", "Error ${t.message}")
+                }
+            }
+        }, {
+            activity.runOnUiThread {
+                // TODO: add error message
+                image.setImageResource(R.drawable.icon_broken_image)
+                image.visibility = View.VISIBLE
+            }
+        })
+    }
+
     fun setImageAsync(
         activity    : MainActivity,
         context     : Context,
