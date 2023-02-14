@@ -29,6 +29,12 @@ class MTPHelper(
         return getCachedPreview(name)
     }
 
+    fun getCacheRecord(index : Int) : MtpObjectInfo {
+        val name = listOfImagesOnCamera[index].name!!
+        return listOfMtpObjectInfo[name]!!
+    }
+
+    @Synchronized
     fun downloadOriginal(index : Int) : File {
         val name = listOfImagesOnCamera[index].name!!
         val file = getTemporaryFile(context, "orig_$name")
@@ -41,6 +47,7 @@ class MTPHelper(
         return file
     }
 
+    @Synchronized
     fun getOriginal(index : Int) : ByteArray {
         val name = listOfImagesOnCamera[index].name!!
         val file = getTemporaryFile(context, "orig_$name")

@@ -16,6 +16,7 @@ import com.mewhpm.mewphotoprism.pojo.PhotoprismImgPreviewTask
 import com.mewhpm.mewphotoprism.pojo.SimpleImage
 import com.mewhpm.mewphotoprism.utils.FixedSizeOrderedMap
 import java.io.File
+import java.security.SecureRandom
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
@@ -43,6 +44,8 @@ class PhotoprismHelper(
 
     private val imagesPreviewWorker = PhotoprismWorkers<PhotoprismImgPreviewTask>(IMAGES_CACHE_PAGE_SIZE / 2)
     private val directoriesPreviewWorker = PhotoprismWorkers<PhotoprismDirPreviewTask>(DIRECTORY_CACHE_PAGE_SIZE / 2)
+
+    private val sRandom = SecureRandom()
 
     init {
         imagesPreviewWorker.startWorker({ item ->
@@ -78,6 +81,16 @@ class PhotoprismHelper(
                      filter: PhotoprismPredefinedFilters,
                      extra: Map<String, Any>) {
         loadImgPreview(filter, extra, 0)
+    }
+
+    @Synchronized
+    fun importMTPToGallery(mtpHelper: MTPHelper, index : Int, transaction : Long) {
+        val meta = mtpHelper.getCacheRecord(index)
+        val binaryData = mtpHelper.getOriginal(index)
+        val result = client.uploadImage(transaction, binaryData, meta.name)
+        if (result.code != 200) {
+            Log.e("UPLOAD", "Upload fail; code = ${result.code}; message = ${result.message}")
+        }
     }
 
     @Synchronized

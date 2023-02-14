@@ -14,12 +14,17 @@ import android.os.IBinder
 import android.provider.MediaStore
 import android.util.Log
 import com.mewhpm.mewphotoprism.R
+import com.mewhpm.mewphotoprism.pojo.MTPSyncTask
+import com.mewhpm.mewphotoprism.services.helpers.MTPBlockingWorkers
 import com.mewhpm.mewphotoprism.services.helpers.MTPHelper
 import com.mewhpm.mewphotoprism.services.helpers.MTPUtils
 import com.mewhpm.mewphotoprism.services.helpers.PhotoprismHelper
 import com.mewhpm.mewphotoprism.utils.X_ACTION
 import com.mewhpm.mewphotoprism.utils.X_ACTION_PHOTOPRISM_LOGIN
 import com.mewhpm.mewphotoprism.utils.X_ACTION_START
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.runBlocking
+import java.util.concurrent.atomic.AtomicReference
 
 class UniversalBackgroundService : Service() {
     private val contentObserver = object : ContentObserver(null) {
@@ -44,12 +49,28 @@ class UniversalBackgroundService : Service() {
     private lateinit var notification: Notification.Builder
     private val binder : UBSBinder = UBSBinder()
 
-    private val mtpUtils = MTPUtils()
+    private val protoprismState = AtomicReference(CompletableDeferred(Unit))
+    private val mtpConnectedState = AtomicReference(CompletableDeferred(Unit))
+    private val mtpUtils = MTPUtils(mtpConnectedState)
+    private val mtpSyncWorker = MTPBlockingWorkers<MTPSyncTask>(0xFFFF)
 
     @Volatile
     var photoprismHelper : PhotoprismHelper? = null
     @Volatile
     var mtpHelper : MTPHelper? = null
+
+    init {
+        mtpSyncWorker.startWorker({ item ->
+            runBlocking {
+                if (photoprismHelper == null) protoprismState.get().await()
+                if (mtpHelper?.isCameraConnected() != true) mtpConnectedState.get().await()
+                photoprismHelper!!.importMTPToGallery(mtpHelper!!, item.index, item.transactionId)
+            }
+            true
+        }, {
+            // TODO: add error message
+        })
+    }
 
     fun mtpInit() {
         mtpUtils.createService(this.applicationContext)
@@ -70,6 +91,7 @@ class UniversalBackgroundService : Service() {
         if (photoprismHelper == null) {
             photoprismHelper = PhotoprismHelper(baseUrl, login, password)
             photoprismHelper!!.checkSession()
+            protoprismState.getAndSet(CompletableDeferred(Unit)).complete(Unit)
         }
     }
 

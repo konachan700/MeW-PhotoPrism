@@ -11,6 +11,7 @@ import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.mewhpm.mewphotoprism.MainActivity
 import com.mewhpm.mewphotoprism.R
 import com.mewhpm.mewphotoprism.adapters.MTPListAdapter
@@ -20,6 +21,7 @@ class MTPImageListAndSyncFragment : Fragment() {
     private var currentView : View?  = null
     private var recyclerView : RecyclerView? = null
     private var recyclerViewState : Bundle? = null
+    private var buttonSync : FloatingActionButton? = null
 
     private fun getMTPHelper() : MTPHelper {
         return (requireActivity() as MainActivity).fgService!!.mtpHelper!!
@@ -51,6 +53,11 @@ class MTPImageListAndSyncFragment : Fragment() {
             transaction.replace(R.id.fragmentHost, imageViewFragment, "MTPImageViewFragment")
             transaction.addToBackStack(null)
             transaction.commit()
+        }
+        buttonSync = currentView!!.findViewById<FloatingActionButton>(R.id.buttonSyncMtpAndRemote)
+        buttonSync!!.setOnClickListener {
+
+
         }
 
         if (getMTPHelper().isCameraConnected()) {

@@ -8,7 +8,10 @@ import com.mewhpm.mewphotoprism.exceptions.PhotoprismInvalidLoginPasswordExcepti
 import com.mewhpm.mewphotoprism.utils.copyToWithProgress
 import com.mewhpm.mewphotoprism.utils.disableHostsVerify
 import com.mewhpm.mewphotoprism.utils.disableSslVerify
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.ResponseBody
 import retrofit2.Call
 import retrofit2.Retrofit
@@ -271,6 +274,13 @@ class ProtoprismApiClient(
     fun importCommit(transactionID : String, commitInfo : PhotoprismImportCommitDTO) : PhotoprismResultDTO {
         checkSession()
         val call : Call<PhotoprismResultDTO> = service.importCommit(session.get().id, transactionID, commitInfo)
+        return call.execute().body()!!
+    }
+
+    fun uploadImage(transactionID : Long, bytes : ByteArray, filename : String) : PhotoprismResultDTO {
+        val body = bytes.toRequestBody("multipart/form-data".toMediaType())
+        val part = MultipartBody.Part.createFormData("files", filename, body)
+        val call : Call<PhotoprismResultDTO> = service.uploadPhoto(session.get().id, "$transactionID", part)
         return call.execute().body()!!
     }
 }

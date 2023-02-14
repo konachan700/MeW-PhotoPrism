@@ -57,7 +57,7 @@
         </androidx.recyclerview.widget.RecyclerView>
     </LinearLayout>
     <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/menuInvokeButton"
+        android:id="@+id/buttonSyncMtpAndRemote"
         android:layout_width="64dp"
         android:layout_height="64dp"
         android:layout_gravity="top|end"
@@ -67,7 +67,7 @@
         android:alpha="0.75"
         android:background="#000000"
         android:clickable="true"
-        android:foreground="@drawable/icon_menu"
+        android:foreground="@drawable/icon_sync"
         android:foregroundGravity="center_vertical|center"
         android:foregroundTint="#FFFFFF"
         app:backgroundTint="#000000" />

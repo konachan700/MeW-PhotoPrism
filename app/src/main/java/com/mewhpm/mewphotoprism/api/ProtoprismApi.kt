@@ -1,6 +1,7 @@
 package com.mewhpm.mewphotoprism.api
 
 import com.mewhpm.mewphotoprism.dto.*
+import okhttp3.MultipartBody
 import okhttp3.ResponseBody
 import retrofit2.Call
 import retrofit2.http.*
@@ -103,10 +104,15 @@ interface ProtoprismApi {
         @Path("uid")            uid      : String
     ) : Call<PhotoprismImageLikeWrapperDTO>
 
+    @Multipart
+    @POST("api/v1/upload/{transactionID}")
+    fun uploadPhoto(
+        @Header("X-Session-ID") session      : String,
+        @Path("transactionID") transactionID : String,
+        @Part                  part          : MultipartBody.Part
+    ) : Call<PhotoprismResultDTO>
 
-    //api/v1/config
 
-    ///api/v1/photos/prpm7er1loikvvpk/like
 
     // CREATE ALBUM
     // req  = POST api/v1/albums

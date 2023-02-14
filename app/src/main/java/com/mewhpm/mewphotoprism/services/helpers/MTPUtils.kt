@@ -13,10 +13,14 @@ import android.mtp.MtpDevice
 import android.util.Log
 import com.mewhpm.mewphotoprism.exceptions.MTPGeneralException
 import com.mewhpm.mewphotoprism.services.UniversalBackgroundService.Companion.ACTION_USB_PERMISSION
+import kotlinx.coroutines.CompletableDeferred
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 
-class MTPUtils : BroadcastReceiver() {
+class MTPUtils(
+    val state : AtomicReference<CompletableDeferred<Unit>>
+) : BroadcastReceiver() {
     var manager: UsbManager? = null
     var usbDevice: UsbDevice? = null
     val accessGranted = AtomicBoolean(false)
@@ -43,6 +47,7 @@ class MTPUtils : BroadcastReceiver() {
                     val openSuccess = mtpDevice!!.open(it)
                     if (openSuccess) {
                         actionsListener?.invoke(mtpDevice)
+                        state.getAndSet(CompletableDeferred(Unit)).complete(Unit)
                         Log.i("MTP_OPEN", "open ok [${mtpDevice?.deviceName}]")
                     }
                 }
